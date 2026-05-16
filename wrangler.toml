@@ -1,0 +1,7 @@
+# Cloudflare Pages build configuration
+# https://developers.cloudflare.com/pages/configuration/wrangler-configuration/
+name = "mombongo-admin"
+pages_build_output_dir = "./dist"
+
+[build]
+command = "bun run build"
