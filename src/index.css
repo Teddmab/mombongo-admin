@@ -37,14 +37,14 @@
     --green-500: 142 39% 39%;
     --green-200: 140 39% 75%;
     --green-100: 140 39% 88%;
-    --green-50:  140 33% 94%;
+    --green-50: 140 33% 94%;
 
     --amber-900: 36 100% 18%;
     --amber-700: 47 100% 27%;
     --amber-500: 45 81% 46%;
     --amber-400: 38 90% 53%;
     --amber-100: 44 89% 93%;
-    --amber-50:  43 80% 96%;
+    --amber-50: 43 80% 96%;
 
     --gray-900: 220 39% 11%;
     --gray-800: 217 33% 17%;
@@ -53,20 +53,22 @@
     --gray-400: 220 9% 64%;
     --gray-200: 220 13% 91%;
     --gray-100: 220 14% 96%;
-    --gray-50:  210 20% 98%;
+    --gray-50: 210 20% 98%;
 
     --success: 142 71% 45%;
     --warning: 38 92% 50%;
-    --danger:  0 84% 60%;
-    --info:    217 91% 60%;
+    --danger: 0 84% 60%;
+    --info: 217 91% 60%;
 
     --bg-app: 42 25% 95%;
     --bg-ticker: 220 39% 11%;
 
-    --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
-    --font-body: 'Noto Sans', system-ui, sans-serif;
+    --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+    --font-body: "Noto Sans", system-ui, sans-serif;
 
-    --shadow-card: 0 1px 3px 0 hsl(220 39% 11% / 0.04), 0 1px 2px -1px hsl(220 39% 11% / 0.04);
+    --shadow-card:
+      0 1px 3px 0 hsl(220 39% 11% / 0.04),
+      0 1px 2px -1px hsl(220 39% 11% / 0.04);
     --shadow-elevated: 0 10px 30px -10px hsl(142 56% 27% / 0.25);
 
     --sidebar-background: 0 0% 98%;
@@ -79,9 +81,12 @@
     --sidebar-ring: 142 56% 27%;
   }
 
-  * { @apply border-border; }
+  * {
+    @apply border-border;
+  }
 
-  html, body {
+  html,
+  body {
     @apply bg-app text-foreground;
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
@@ -93,24 +98,55 @@
     min-height: 100vh;
   }
 
-  h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); }
-  .font-display { font-family: var(--font-display); }
-  .font-body { font-family: var(--font-body); }
-  .tabular { font-variant-numeric: tabular-nums; }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+  }
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-body {
+    font-family: var(--font-body);
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 @layer utilities {
-  .bg-app { background-color: hsl(var(--bg-app)); }
+  .bg-app {
+    background-color: hsl(var(--bg-app));
+  }
 
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
 
-  .stagger-0 { animation-delay: 0ms; }
-  .stagger-1 { animation-delay: 60ms; }
-  .stagger-2 { animation-delay: 120ms; }
-  .stagger-3 { animation-delay: 180ms; }
-  .stagger-4 { animation-delay: 240ms; }
-  .stagger-5 { animation-delay: 300ms; }
+  .stagger-0 {
+    animation-delay: 0ms;
+  }
+  .stagger-1 {
+    animation-delay: 60ms;
+  }
+  .stagger-2 {
+    animation-delay: 120ms;
+  }
+  .stagger-3 {
+    animation-delay: 180ms;
+  }
+  .stagger-4 {
+    animation-delay: 240ms;
+  }
+  .stagger-5 {
+    animation-delay: 300ms;
+  }
 
   /* MOBILE container: the screen is the entire viewport (max 480px) */
   .mobile-frame {

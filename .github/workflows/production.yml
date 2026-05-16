@@ -10,6 +10,7 @@ concurrency:
 
 env:
   NODE_VERSION: "20"
+  JAVA_VERSION: "21"
   FIREBASE_PROJECT: mombongo-prod
   PRODUCTION_URL: https://mombongo-admin.pages.dev
 
@@ -46,7 +47,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
 
       - name: Cache Firebase Emulator
         uses: actions/cache@v4
@@ -59,16 +60,14 @@ jobs:
       - run: bun run typecheck
       - run: bun run test:unit
 
-      - run: bun install -g firebase-tools
-
       - name: Start Firebase Emulator
         run: |
-          firebase emulators:start \
+          bunx --package firebase-tools firebase emulators:start \
             --only auth,firestore,storage \
             --project mombongo-dev \
             --import ./emulator-seed \
             &
-          npx wait-on http://localhost:4000 --timeout 60000
+          bunx --package wait-on wait-on http://localhost:4000 --timeout 60000
 
       - name: Integration tests
         run: bun run test:integration
@@ -123,11 +122,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install -g firebase-tools
 
       - name: Deploy Firestore rules + indexes + storage rules
         run: |
-          firebase deploy \
+          bunx --package firebase-tools firebase deploy \
             --only firestore:rules,firestore:indexes,storage:rules \
             --project ${{ env.FIREBASE_PROJECT }} \
             --token ${{ secrets.FIREBASE_TOKEN_PROD }}

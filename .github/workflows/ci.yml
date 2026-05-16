@@ -12,7 +12,7 @@ concurrency:
 
 env:
   NODE_VERSION: '20'
-  JAVA_VERSION: '17'
+  JAVA_VERSION: '21'
   FIREBASE_PROJECT: mombongo-dev
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck
 
@@ -39,7 +39,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - run: bun run test:unit -- --reporter=verbose --coverage
         env:
           VITE_DEV_MODE: true
@@ -69,16 +69,15 @@ jobs:
         with:
           path: ~/.cache/firebase/emulators
           key: firebase-emulators-${{ runner.os }}-v1
-      - run: bun install
-      - run: bun install -g firebase-tools
+      - run: bun install --frozen-lockfile
       - name: Start Firebase Emulator
         run: |
-          firebase emulators:start \
+          bunx --package firebase-tools firebase emulators:start \
             --only auth,firestore,storage \
             --project ${{ env.FIREBASE_PROJECT }} \
             --import ./emulator-seed \
             &
-          npx wait-on http://localhost:4000 --timeout 60000
+          bunx --package wait-on wait-on http://localhost:4000 --timeout 60000
       - name: Run integration tests
         run: bun run test:integration
         env:
@@ -102,7 +101,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - run: bun run build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
