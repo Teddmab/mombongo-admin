@@ -72,7 +72,7 @@ jobs:
       - name: Integration tests
         run: bun run test:integration
         env:
-          FIRESTORE_EMULATOR_HOST: localhost:8080
+          FIRESTORE_EMULATOR_HOST: localhost:8090
           FIREBASE_AUTH_EMULATOR_HOST: localhost:9099
           FIREBASE_STORAGE_EMULATOR_HOST: localhost:9199
 

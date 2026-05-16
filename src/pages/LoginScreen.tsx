@@ -23,7 +23,7 @@ export function LoginScreen() {
 
     try {
       await signIn(email, password);
-      navigate("/dashboard", { replace: true });
+      navigate("/admin", { replace: true });
     } catch (submissionError) {
       const message = submissionError instanceof Error ? submissionError.message : "Connexion impossible.";
       setError(message);
