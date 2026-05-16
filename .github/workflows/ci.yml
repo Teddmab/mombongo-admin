@@ -117,10 +117,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: [unit-tests, integration-tests, build-check]
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/github-script@v7
         with:
           script: |
+            if (context.payload.pull_request?.head?.repo?.full_name !== context.repo.owner + '/' + context.repo.repo) {
+              core.notice('Skipping PR comment for forked pull request because the integration token cannot write comments.');
+              return;
+            }
+
             const u = '${{ needs.unit-tests.result }}'
             const i = '${{ needs.integration-tests.result }}'
             const b = '${{ needs.build-check.result }}'
