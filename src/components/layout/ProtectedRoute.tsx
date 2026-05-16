@@ -1,5 +1,4 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { AdminShell } from "@/components/layout/AdminShell";
 import { useAuth } from "@/hooks/useAuth";
 import { AccessDeniedScreen } from "@/pages/AccessDeniedScreen";
 
@@ -9,10 +8,14 @@ export function ProtectedRoute() {
 
   if (loading) {
     return (
-      <div className="empty-state">
-        <div className="empty-card">
-          <div className="section-kicker">Chargement</div>
-          <h1 className="page-title">Connexion au panneau admin…</h1>
+      <div className="min-h-screen grid place-items-center bg-gray-50 p-6">
+        <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-green-700">
+            Chargement
+          </div>
+          <h1 className="mt-3 font-display text-[24px] font-black text-gray-900">
+            Connexion au panneau admin…
+          </h1>
         </div>
       </div>
     );
@@ -26,9 +29,5 @@ export function ProtectedRoute() {
     return <AccessDeniedScreen />;
   }
 
-  return (
-    <AdminShell>
-      <Outlet />
-    </AdminShell>
-  );
+  return <Outlet />;
 }

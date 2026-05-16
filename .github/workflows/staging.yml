@@ -127,7 +127,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: mombongo-admin # must match your CF Pages project name
           directory: dist
-          # Deploys to the "staging" branch alias → staging.mombongo.coop
+          # Deploys to the "staging" branch alias → staging.mombongo-admin.pages.dev
           branch: staging
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
@@ -167,7 +167,7 @@ jobs:
         run: bun run test:e2e
         env:
           # Cloudflare Pages gives a stable staging alias URL
-          PLAYWRIGHT_BASE_URL: https://staging.mombongo.coop
+          PLAYWRIGHT_BASE_URL: https://staging.mombongo-admin.pages.dev
           TEST_INVESTOR_EMAIL: ${{ secrets.TEST_INVESTOR_EMAIL }}
           TEST_INVESTOR_PASSWORD: ${{ secrets.TEST_INVESTOR_PASSWORD }}
           TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
@@ -195,7 +195,7 @@ jobs:
           curl -X POST "${{ secrets.WHATSAPP_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
             -d '{
-              "message": "✅ *Mombongo Staging Deploy* — OK\nURL: https://staging.mombongo.coop\nAll E2E tests passed.\nJuve — please QA on real Android device.",
+              "message": "✅ *Mombongo Staging Deploy* — OK\nURL: https://staging.mombongo-admin.pages.dev\nAll E2E tests passed.\nJuve — please QA on real Android device.",
               "group": "team"
             }'
 

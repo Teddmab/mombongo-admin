@@ -11,7 +11,7 @@ concurrency:
 env:
   NODE_VERSION: "20"
   FIREBASE_PROJECT: mombongo-prod
-  PRODUCTION_URL: https://admin.mombongo.coop
+  PRODUCTION_URL: https://mombongo-admin.pages.dev
 
 jobs:
   # ─────────────────────────────────────────
@@ -160,7 +160,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: mombongo-admin # must match your CF Pages project name
           directory: dist
-          # Deploying main branch = production alias → app.mombongo.coop
+          # Deploying main branch = production alias → mombongo-admin.pages.dev
           branch: main
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
@@ -231,7 +231,7 @@ jobs:
           release_name: v${{ steps.ver.outputs.VERSION }}
           body: |
             **Deployed:** ${{ env.PRODUCTION_URL }}
-            **Cloudflare Pages:** mombongo-web (main branch)
+            **Cloudflare Pages:** mombongo-admin (main branch)
             **Firebase project:** mombongo-prod
             **Commit:** ${{ github.sha }}
           draft: false
