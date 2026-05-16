@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowRight, LockKeyhole, ShieldCheck } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -23,7 +23,7 @@ export function LoginScreen() {
 
     try {
       await signIn(email, password);
-      navigate("/dashboard", { replace: true });
+      navigate("/admin", { replace: true });
     } catch (submissionError) {
       const message = submissionError instanceof Error ? submissionError.message : "Connexion impossible.";
       setError(message);

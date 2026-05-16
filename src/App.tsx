@@ -1,11 +1,22 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
-import { AdminBourse } from "@/pages/AdminBourse";
-import { AdminDashboard } from "@/pages/AdminDashboard";
-import { AdminFinancing } from "@/pages/AdminFinancing";
-import { AdminTransactions } from "@/pages/AdminTransactions";
-import { AdminUsers } from "@/pages/AdminUsers";
+import {
+  AdminAlerts,
+  AdminDashboard,
+  AdminFarmerDetail,
+  AdminFarmers,
+  AdminKyc,
+  AdminLayout,
+  AdminOpportunities,
+  AdminReportDetail,
+  AdminReports,
+  AdminSettings,
+  AdminTransactionDetail,
+  AdminTransactions,
+  AdminUserDetail,
+  AdminUsers,
+} from "@/pages/Admin";
 import { LoginScreen } from "@/pages/LoginScreen";
 import { AuthProvider } from "@/store/AuthContext";
 
@@ -19,12 +30,25 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginScreen />} />
             <Route element={<ProtectedRoute />}>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<AdminDashboard />} />
-              <Route path="/users" element={<AdminUsers />} />
-              <Route path="/transactions" element={<AdminTransactions />} />
-              <Route path="/financing" element={<AdminFinancing />} />
-              <Route path="/bourse" element={<AdminBourse />} />
+              <Route path="/" element={<Navigate to="/admin" replace />} />
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="users/:id" element={<AdminUserDetail />} />
+                <Route path="farmers" element={<AdminFarmers />} />
+                <Route path="farmers/:id" element={<AdminFarmerDetail />} />
+                <Route path="transactions" element={<AdminTransactions />} />
+                <Route
+                  path="transactions/:id"
+                  element={<AdminTransactionDetail />}
+                />
+                <Route path="opportunities" element={<AdminOpportunities />} />
+                <Route path="kyc" element={<AdminKyc />} />
+                <Route path="reports" element={<AdminReports />} />
+                <Route path="reports/:id" element={<AdminReportDetail />} />
+                <Route path="alerts" element={<AdminAlerts />} />
+                <Route path="settings" element={<AdminSettings />} />
+              </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
