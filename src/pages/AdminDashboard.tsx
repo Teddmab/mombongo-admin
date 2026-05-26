@@ -17,7 +17,7 @@ export function AdminDashboard() {
   const { data: activity } = useQuery({ queryKey: ["dashboard-activity"], queryFn: () => adminService.getActivity() });
 
   return (
-    <motion.section className="page" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }}>
+    <motion.section data-testid="admin-dashboard" className="page" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }}>
       <div>
         <div className="section-kicker">Tableau de bord</div>
         <h1 className="page-title">Supervision des opérations Mombongo</h1>
