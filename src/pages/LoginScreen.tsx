@@ -45,16 +45,16 @@ export function LoginScreen() {
           <form onSubmit={handleSubmit} className="field-stack">
             <div className="field">
               <label htmlFor="email">Adresse email</label>
-              <input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+              <input id="email" data-testid="email-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
             </div>
 
             <div className="field">
               <label htmlFor="password">Mot de passe</label>
-              <input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
+              <input id="password" data-testid="password-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
             </div>
 
             <div className="button-row">
-              <button type="submit" className="button" disabled={loading || isSubmitting}>
+              <button type="submit" data-testid="login-submit" className="button" disabled={loading || isSubmitting}>
                 <LockKeyhole size={18} />
                 {isSubmitting ? "Connexion..." : "Se connecter"}
               </button>
@@ -62,7 +62,7 @@ export function LoginScreen() {
             </div>
           </form>
 
-          {error ? <p className="error-text">{error}</p> : null}
+          {error ? <p data-testid="login-error" className="error-text">{error}</p> : null}
 
           <div className="hint-box">
             <strong>Accès restreint.</strong> Les comptes non-admin sont redirigés vers un écran d'accès refusé après authentification.

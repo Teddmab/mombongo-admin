@@ -17,6 +17,7 @@ import {
   AdminUserDetail,
   AdminUsers,
 } from "@/pages/Admin";
+import { AdminProducts } from "@/pages/AdminProducts";
 import { LoginScreen } from "@/pages/LoginScreen";
 import { AuthProvider } from "@/store/AuthContext";
 
@@ -37,6 +38,7 @@ export default function App() {
                 <Route path="users/:id" element={<AdminUserDetail />} />
                 <Route path="farmers" element={<AdminFarmers />} />
                 <Route path="farmers/:id" element={<AdminFarmerDetail />} />
+                <Route path="products" element={<AdminProducts />} />
                 <Route path="transactions" element={<AdminTransactions />} />
                 <Route
                   path="transactions/:id"
