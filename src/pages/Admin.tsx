@@ -67,6 +67,7 @@ const NAV = [
   { to: "/admin", icon: LayoutDashboard, label: "Vue d'ensemble", end: true },
   { to: "/admin/users", icon: Users, label: "Utilisateurs" },
   { to: "/admin/farmers", icon: Sprout, label: "Agriculteurs" },
+  { to: "/admin/products", icon: Package, label: "Produits" },
   { to: "/admin/transactions", icon: Receipt, label: "Transactions" },
   { to: "/admin/opportunities", icon: Briefcase, label: "Opportunités" },
   { to: "/admin/kyc", icon: ShieldCheck, label: "KYC & Conformité" },
