@@ -33,6 +33,7 @@ import {
   Ban,
   ChevronRight,
   Plus,
+  Coins,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -70,6 +71,8 @@ const NAV = [
   { to: "/admin/products", icon: Package, label: "Produits" },
   { to: "/admin/transactions", icon: Receipt, label: "Transactions" },
   { to: "/admin/opportunities", icon: Briefcase, label: "Opportunités" },
+  { to: "/admin/bourse", icon: TrendingUp, label: "Bourse" },
+  { to: "/admin/financing", icon: Coins, label: "Financement" },
   { to: "/admin/kyc", icon: ShieldCheck, label: "KYC & Conformité" },
   { to: "/admin/reports", icon: FileBarChart, label: "Rapports" },
   { to: "/admin/alerts", icon: Bell, label: "Alertes" },
