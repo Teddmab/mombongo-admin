@@ -246,6 +246,7 @@ jobs:
     steps:
       - name: Notify success
         if: needs.health-check.result == 'success'
+        continue-on-error: true
         run: |
           curl -X POST "${{ secrets.WHATSAPP_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
@@ -256,6 +257,7 @@ jobs:
 
       - name: Notify failure
         if: needs.health-check.result != 'success'
+        continue-on-error: true
         run: |
           curl -X POST "${{ secrets.WHATSAPP_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
