@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminService } from "@/services/admin.service";
-import type { BourseOpportunityRow, BoursePriceRow } from "@/services/admin.service";
+import type { BoursePriceRow } from "@/services/admin.service";
 import { formatCdf } from "@/lib/utils";
 import { Truck, Warehouse, Factory, TrendingUp, TrendingDown, Plus, ChevronDown } from "lucide-react";
 
