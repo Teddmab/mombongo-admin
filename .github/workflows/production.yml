@@ -248,20 +248,10 @@ jobs:
         if: needs.health-check.result == 'success'
         continue-on-error: true
         run: |
-          curl -X POST "${{ secrets.WHATSAPP_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "message": "🚀 *Mombongo Production Deploy* — SUCCESS\nURL: ${{ env.PRODUCTION_URL }}\nAll smoke tests passed.\ncc: djuna sambil — la nouvelle version est en ligne!",
-              "group": "team"
-            }'
+          curl "https://api.callmebot.com/whatsapp.php?phone=${{ secrets.WHATSAPP_PHONE }}&apikey=${{ secrets.WHATSAPP_APIKEY }}&text=$(python3 -c "import urllib.parse; print(urllib.parse.quote('🚀 Mombongo Admin — Deploy SUCCESS\nURL: ${{ env.PRODUCTION_URL }}\nAll checks passed.'))")"
 
       - name: Notify failure
         if: needs.health-check.result != 'success'
         continue-on-error: true
         run: |
-          curl -X POST "${{ secrets.WHATSAPP_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "message": "🔴 *Mombongo Production Deploy* — FAILED\nSite may be down. Afrotouch OU — immediate attention needed.\nActions: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "group": "team"
-            }'
+          curl "https://api.callmebot.com/whatsapp.php?phone=${{ secrets.WHATSAPP_PHONE }}&apikey=${{ secrets.WHATSAPP_APIKEY }}&text=$(python3 -c "import urllib.parse; print(urllib.parse.quote('🔴 Mombongo Admin — Deploy FAILED\nImmediate attention needed.\nActions: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'))")"
