@@ -18,6 +18,9 @@ import {
   AdminUsers,
 } from "@/pages/Admin";
 import { AdminProducts } from "@/pages/AdminProducts";
+import { AdminBourse } from "@/pages/AdminBourse";
+import { AdminFinancing } from "@/pages/AdminFinancing";
+import { AdminAcademia } from "@/pages/AdminAcademia";
 import { LoginScreen } from "@/pages/LoginScreen";
 import { AuthProvider } from "@/store/AuthContext";
 
@@ -45,6 +48,9 @@ export default function App() {
                   element={<AdminTransactionDetail />}
                 />
                 <Route path="opportunities" element={<AdminOpportunities />} />
+                <Route path="bourse" element={<AdminBourse />} />
+                <Route path="financing" element={<AdminFinancing />} />
+                <Route path="academia" element={<AdminAcademia />} />
                 <Route path="kyc" element={<AdminKyc />} />
                 <Route path="reports" element={<AdminReports />} />
                 <Route path="reports/:id" element={<AdminReportDetail />} />
