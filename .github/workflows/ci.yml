@@ -104,12 +104,13 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
         env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.STAGING_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_API_KEY: AIzaSyA3M9-L-q0uuz_yEql2ju7oNADFU7bZUjI
+          VITE_FIREBASE_AUTH_DOMAIN: mombongo-dev.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: mombongo-dev
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.STAGING_FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.STAGING_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.STAGING_FIREBASE_APP_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: mombongo-dev.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: "471948196882"
+          VITE_FIREBASE_APP_ID: "1:471948196882:web:d2ab0c6ea7527ae4c4accb"
+          VITE_FIREBASE_MEASUREMENT_ID: G-NBD3EZPS06
           VITE_ENVIRONMENT: staging
 
   pr-comment:
