@@ -5,8 +5,16 @@ import {
   doc, serverTimestamp, deleteDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Plus, Pencil, Trash2, BookOpen, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
-import { toast } from "sonner";
+import { Plus, Pencil, Trash2, BookOpen, ChevronDown, ChevronUp, Eye, EyeOff, CheckCircle, XCircle } from "lucide-react";
+
+function useToast() {
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const show = (text: string, ok = true) => {
+    setMsg({ text, ok });
+    setTimeout(() => setMsg(null), 3000);
+  };
+  return { msg, success: (t: string) => show(t, true), error: (t: string) => show(t, false) };
+}
 
 interface Course {
   id: string;
@@ -37,6 +45,7 @@ const STATUS_CHIP: Record<string, string> = {
 
 export function AdminAcademia() {
   const qc = useQueryClient();
+  const toast = useToast();
   const [tab, setTab] = useState<"courses" | "modules">("courses");
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -75,6 +84,7 @@ export function AdminAcademia() {
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-courses"] }); setShowForm(false); setEditCourse(null); toast.success("Cours sauvegardé"); },
     onError: () => toast.error("Erreur lors de la sauvegarde"),
+
   });
 
   const toggleStatus = useMutation({
@@ -106,6 +116,13 @@ export function AdminAcademia() {
 
   return (
     <div className="space-y-5">
+      {/* Toast banner */}
+      {toast.msg && (
+        <div className={`fixed top-4 right-4 z-[100] flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-[13px] font-semibold text-white ${toast.msg.ok ? "bg-green-700" : "bg-red-600"}`}>
+          {toast.msg.ok ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+          {toast.msg.text}
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
