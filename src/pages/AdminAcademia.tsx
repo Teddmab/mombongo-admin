@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   collection, getDocs, query, orderBy, addDoc, updateDoc,
-  doc, serverTimestamp, deleteDoc,
+  doc, serverTimestamp, deleteDoc, writeBatch, increment,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Plus, Pencil, Trash2, BookOpen, ChevronDown, ChevronUp, Eye, EyeOff, CheckCircle, XCircle } from "lucide-react";
@@ -102,14 +102,29 @@ export function AdminAcademia() {
   const saveModule = useMutation({
     mutationFn: async (data: Omit<Module, "id">) => {
       await addDoc(collection(db, "courses", selectedCourseId!, "modules"), data);
+      await updateDoc(doc(db, "courses", selectedCourseId!), { moduleCount: increment(1) });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-modules", selectedCourseId] }); setShowModuleForm(false); toast.success("Module ajouté"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-modules", selectedCourseId] }); qc.invalidateQueries({ queryKey: ["admin-courses"] }); setShowModuleForm(false); toast.success("Module ajouté"); },
   });
 
   const deleteModule = useMutation({
-    mutationFn: (moduleId: string) => deleteDoc(doc(db, "courses", selectedCourseId!, "modules", moduleId)),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-modules", selectedCourseId] }),
+    mutationFn: async (moduleId: string) => {
+      await deleteDoc(doc(db, "courses", selectedCourseId!, "modules", moduleId));
+      await updateDoc(doc(db, "courses", selectedCourseId!), { moduleCount: increment(-1) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-modules", selectedCourseId] }); qc.invalidateQueries({ queryKey: ["admin-courses"] }); },
   });
+
+  async function reorderModule(idx: number, direction: "up" | "down") {
+    const a = modules[idx];
+    const b = direction === "up" ? modules[idx - 1] : modules[idx + 1];
+    if (!a || !b || !selectedCourseId) return;
+    const batch = writeBatch(db);
+    batch.update(doc(db, "courses", selectedCourseId, "modules", a.id), { order: b.order });
+    batch.update(doc(db, "courses", selectedCourseId, "modules", b.id), { order: a.order });
+    await batch.commit();
+    qc.invalidateQueries({ queryKey: ["admin-modules", selectedCourseId] });
+  }
 
   const courses = coursesQ.data ?? [];
   const modules = modulesQ.data ?? [];
@@ -252,10 +267,10 @@ export function AdminAcademia() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
-                            <button onClick={() => { if (idx > 0) { /* reorder up */ } }} className="p-1 rounded hover:bg-gray-100 disabled:opacity-30" disabled={idx === 0}>
+                            <button onClick={() => reorderModule(idx, "up")} className="p-1 rounded hover:bg-gray-100 disabled:opacity-30" disabled={idx === 0}>
                               <ChevronUp className="w-4 h-4 text-gray-400" />
                             </button>
-                            <button onClick={() => { if (idx < modules.length - 1) { /* reorder down */ } }} className="p-1 rounded hover:bg-gray-100 disabled:opacity-30" disabled={idx === modules.length - 1}>
+                            <button onClick={() => reorderModule(idx, "down")} className="p-1 rounded hover:bg-gray-100 disabled:opacity-30" disabled={idx === modules.length - 1}>
                               <ChevronDown className="w-4 h-4 text-gray-400" />
                             </button>
                             <button onClick={() => { if (confirm("Supprimer ce module ?")) deleteModule.mutate(m.id); }}
