@@ -1,22 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
-import {
-  AdminAlerts,
-  AdminDashboard,
-  AdminFarmerDetail,
-  AdminFarmers,
-  AdminKyc,
-  AdminLayout,
-  AdminOpportunities,
-  AdminReportDetail,
-  AdminReports,
-  AdminSettings,
-  AdminTransactionDetail,
-  AdminTransactions,
-  AdminUserDetail,
-  AdminUsers,
-} from "@/pages/Admin";
+import { AdminLayout, AdminUserDetail, AdminOpportunities, AdminReports, AdminReportDetail } from "@/pages/Admin";
+import { AdminDashboard } from "@/pages/AdminDashboard";
+import { AdminUsers } from "@/pages/AdminUsers";
+import { AdminFarmers, AdminFarmerDetail } from "@/pages/AdminFarmers";
+import { AdminTransactions, AdminTransactionDetail } from "@/pages/AdminTransactions";
+import { AdminKyc } from "@/pages/AdminKyc";
+import { AdminAlerts } from "@/pages/AdminAlerts";
+import { AdminSettings } from "@/pages/AdminSettings";
 import { AdminProducts } from "@/pages/AdminProducts";
 import { AdminBourse } from "@/pages/AdminBourse";
 import { AdminFinancing } from "@/pages/AdminFinancing";
