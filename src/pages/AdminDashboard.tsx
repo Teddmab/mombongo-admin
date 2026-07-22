@@ -68,6 +68,7 @@ export function AdminDashboard() {
         <p className="page-copy">Données en direct depuis Firestore — actualisées toutes les 60 secondes.</p>
       </div>
 
+      {/* KPI cards */}
       <div className="stats-grid">
         {STAT_CARDS.map(({ key, label, icon: Icon, format }) => (
           <article key={key} className="metric-card">
@@ -81,6 +82,7 @@ export function AdminDashboard() {
       </div>
 
       <div className="panel-grid">
+        {/* Monthly volume bar chart */}
         <article className="panel">
           <div className="section-header">
             <div>
@@ -104,6 +106,7 @@ export function AdminDashboard() {
           </div>
         </article>
 
+        {/* Live activity feed */}
         <article className="panel">
           <div className="section-header">
             <div>
