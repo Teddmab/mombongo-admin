@@ -32,7 +32,6 @@ export function AdminKyc() {
   const qc = useQueryClient();
   const toast = useToast();
   const [filter, setFilter] = useState<StatusFilter>("pending");
-  const [selected, setSelected] = useState<KycUser | null>(null);
   const [saving, setSaving] = useState(false);
 
   const { data: users = [], isLoading } = useQuery({
@@ -53,7 +52,6 @@ export function AdminKyc() {
       await updateDoc(doc(db, "users", userId), extra);
       toast.success(`KYC mis à jour → ${kycStatus}`);
       qc.invalidateQueries({ queryKey: ["admin-kyc-users"] });
-      setSelected(null);
     } catch {
       toast.error("Erreur lors de la mise à jour");
     } finally { setSaving(false); }
@@ -71,7 +69,6 @@ export function AdminKyc() {
       });
       toast.success("KYC rejeté");
       qc.invalidateQueries({ queryKey: ["admin-kyc-users"] });
-      setSelected(null);
     } catch {
       toast.error("Erreur lors du rejet");
     } finally { setSaving(false); }

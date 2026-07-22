@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -65,7 +65,9 @@ function NumInput({ value, onChange, min, max, step = 0.5 }: {
 export function AdminSettings() {
   const qc = useQueryClient();
   const toast = useToast();
-  const [form, setForm] = useState<PlatformSettings>(DEFAULTS);
+  // Store only unsaved edits as a delta; derive final form = saved + edits.
+  // This avoids copying query data into state and eliminates the useEffect anti-pattern.
+  const [edits, setEdits] = useState<Partial<PlatformSettings>>({});
   const [dirty, setDirty] = useState(false);
 
   const { data: saved, isLoading } = useQuery<PlatformSettings>({
@@ -77,12 +79,10 @@ export function AdminSettings() {
     },
   });
 
-  useEffect(() => {
-    if (saved) { setForm(saved); setDirty(false); }
-  }, [saved]);
+  const form = { ...(saved ?? DEFAULTS), ...edits } as PlatformSettings;
 
   function set<K extends keyof PlatformSettings>(key: K, value: PlatformSettings[K]) {
-    setForm(f => ({ ...f, [key]: value }));
+    setEdits(e => ({ ...e, [key]: value }));
     setDirty(true);
   }
 
@@ -93,14 +93,15 @@ export function AdminSettings() {
     onSuccess: () => {
       toast.success("Paramètres sauvegardés");
       qc.invalidateQueries({ queryKey: ["admin-settings"] });
+      setEdits({});
       setDirty(false);
     },
     onError: () => toast.error("Erreur lors de la sauvegarde"),
   });
 
   function handleReset() {
-    if (!saved || !window.confirm("Restaurer les paramètres sauvegardés ?")) return;
-    setForm(saved);
+    if (!window.confirm("Restaurer les paramètres sauvegardés ?")) return;
+    setEdits({});
     setDirty(false);
   }
 
