@@ -141,7 +141,6 @@ export function AdminDashboard() {
         </article>
       </div>
 
-      {/* Priority actions driven by live KPIs */}
       {(kpis.pendingKyc > 0 || kpis.financingOpen > 0) && (
         <article className="panel">
           <div className="section-header">

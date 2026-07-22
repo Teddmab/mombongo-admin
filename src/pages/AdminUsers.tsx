@@ -130,14 +130,12 @@ function UserDrawer({ user, onClose, onRefetch }: {
     <>
       <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
       <aside className="fixed right-0 top-0 h-full w-[480px] max-w-full bg-white shadow-2xl z-50 flex flex-col overflow-hidden">
-        {/* Toast */}
         {toast.msg && (
           <div className={`fixed top-4 right-4 z-[60] px-4 py-2 rounded-lg text-sm font-semibold shadow-lg ${toast.msg.ok ? "bg-green-600 text-white" : "bg-red-500 text-white"}`}>
             {toast.msg.text}
           </div>
         )}
 
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div>
             <p className="font-bold text-gray-900">{user.fullName || "—"}</p>
@@ -149,7 +147,6 @@ function UserDrawer({ user, onClose, onRefetch }: {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Wallet */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-gray-50 rounded-xl p-3">
               <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1">Wallet USD</p>
@@ -161,7 +158,6 @@ function UserDrawer({ user, onClose, onRefetch }: {
             </div>
           </div>
 
-          {/* Role */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Rôle</p>
             <div className="flex gap-2 items-center">
@@ -184,7 +180,6 @@ function UserDrawer({ user, onClose, onRefetch }: {
             </div>
           </div>
 
-          {/* KYC */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
               <ShieldCheck size={13} className="inline mr-1" />KYC
@@ -207,7 +202,6 @@ function UserDrawer({ user, onClose, onRefetch }: {
             </div>
           </div>
 
-          {/* Investments */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
               <CreditCard size={13} className="inline mr-1" />Investissements ({investments.length})
@@ -228,7 +222,6 @@ function UserDrawer({ user, onClose, onRefetch }: {
             }
           </div>
 
-          {/* Transactions */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
               <Smartphone size={13} className="inline mr-1" />Transactions ({transactions.length})
@@ -250,7 +243,6 @@ function UserDrawer({ user, onClose, onRefetch }: {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-4 border-t">
           <button
             onClick={handleDisable}
