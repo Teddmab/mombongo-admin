@@ -3,7 +3,7 @@ import {
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { Search, X, ChevronRight, ShieldCheck, CreditCard, Smartphone } from "lucide-react";
-import { useDeferredValue, useEffect, useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { db, functions } from "@/lib/firebase";
 
