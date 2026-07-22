@@ -35,6 +35,7 @@ import {
   Plus,
   Coins,
   GraduationCap,
+  Wheat,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -74,7 +75,8 @@ const NAV = [
   { to: "/admin/opportunities", icon: Briefcase, label: "Opportunités" },
   { to: "/admin/bourse", icon: TrendingUp, label: "Bourse" },
   { to: "/admin/financing", icon: Coins, label: "Financement" },
-  { to: "/admin/academia", icon: GraduationCap, label: "Academia" },
+  { to: "/admin/academia",      icon: GraduationCap, label: "Academia" },
+  { to: "/admin/agro-exchange", icon: Wheat,         label: "Agro Exchange" },
   { to: "/admin/kyc", icon: ShieldCheck, label: "KYC & Conformité" },
   { to: "/admin/reports", icon: FileBarChart, label: "Rapports" },
   { to: "/admin/alerts", icon: Bell, label: "Alertes" },
