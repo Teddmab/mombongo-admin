@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Activity, ShieldCheck, Wallet, Wheat, Ship, ArrowDownToLine } from "lucide-react";
+import { Activity, ShieldCheck, Wallet, Wheat, Ship, ArrowDownToLine, TrendingUp } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -44,7 +44,8 @@ const STAT_CARDS = [
   { key: "monthlyVolumeUsd" as const, label: "Volume mensuel",       icon: Wallet,          format: formatUsd },
   { key: "financingOpen" as const,    label: "Financements actifs",  icon: Wheat,           format: (v: number) => v.toLocaleString("fr-FR") },
   { key: "bourseOpen" as const,       label: "Bourse ouverte",       icon: Ship,            format: (v: number) => v.toLocaleString("fr-FR") },
-  { key: "totalDepositsUsd" as const, label: "Total dépôts",         icon: ArrowDownToLine, format: formatUsd },
+  { key: "totalDepositsUsd" as const,    label: "Total dépôts",         icon: ArrowDownToLine, format: formatUsd },
+  { key: "platformRevenueUsd" as const,  label: "Revenus plateforme",   icon: TrendingUp,      format: formatUsd },
 ] as const;
 
 /* ─── Component ──────────────────────────────────────────────────────────── */
