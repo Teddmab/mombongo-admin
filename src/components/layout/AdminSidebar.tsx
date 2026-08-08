@@ -4,6 +4,7 @@ import {
   Landmark,
   LayoutDashboard,
   LogOut,
+  Tag,
   Users,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
@@ -16,6 +17,7 @@ const navigation = [
   { to: "/transactions", label: "Transactions", icon: BarChart3 },
   { to: "/financing", label: "Financement", icon: BriefcaseBusiness },
   { to: "/bourse", label: "Bourse", icon: Landmark },
+  { to: "/offers", label: "Offres", icon: Tag },
 ] as const;
 
 export function AdminSidebar() {
