@@ -75,6 +75,7 @@ const NAV = [
   { to: "/admin/opportunities", icon: Briefcase, label: "Opportunités" },
   { to: "/admin/bourse", icon: TrendingUp, label: "Bourse" },
   { to: "/admin/financing", icon: Coins, label: "Financement" },
+  { to: "/admin/investments", icon: TrendingUp, label: "Investissements" },
   { to: "/admin/academia",      icon: GraduationCap, label: "Academia" },
   { to: "/admin/agro-exchange", icon: Wheat,         label: "Agro Exchange" },
   { to: "/admin/kyc", icon: ShieldCheck, label: "KYC & Conformité" },
