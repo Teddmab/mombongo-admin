@@ -6,6 +6,7 @@ import {
   LogOut,
   Tag,
   Users,
+  Leaf,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +19,7 @@ const navigation = [
   { to: "/financing", label: "Financement", icon: BriefcaseBusiness },
   { to: "/bourse", label: "Bourse", icon: Landmark },
   { to: "/offers", label: "Offres", icon: Tag },
+  { to: "/agronomie", label: "Agronomie", icon: Leaf },
 ] as const;
 
 export function AdminSidebar() {
