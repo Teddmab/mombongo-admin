@@ -54,6 +54,8 @@ import {
   CartesianGrid,
 } from "recharts";
 import { useState } from "react";
+import { LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import {
   adminUsers,
   adminFarmers,
@@ -89,6 +91,7 @@ const NAV = [
 ];
 
 export function AdminLayout() {
+  const { user, signOut } = useAuth();
   return (
     <div className="min-h-screen flex bg-gray-50">
       <aside className="w-60 bg-green-900 text-white p-4 hidden md:flex flex-col">
@@ -127,14 +130,25 @@ export function AdminLayout() {
             </NavLink>
           ))}
         </nav>
-        <a
-          href={INVESTOR_APP_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-2 text-[12px] text-white/60 hover:text-white mt-4 pt-4 border-t border-white/10"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" /> Retour à l'app
-        </a>
+        <div className="mt-4 pt-4 border-t border-white/10 space-y-1">
+          {user && (
+            <p className="text-[11px] text-white/40 truncate px-1 mb-2">{user.email}</p>
+          )}
+          <button
+            onClick={() => void signOut()}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-[13px] font-semibold text-white/70 hover:bg-white/10 transition"
+          >
+            <LogOut className="w-4 h-4" /> Déconnexion
+          </button>
+          <a
+            href={INVESTOR_APP_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 text-[12px] text-white/60 hover:text-white px-3 py-2"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Retour à l'app
+          </a>
+        </div>
       </aside>
       <main className="flex-1 overflow-auto">
         <div className="md:hidden bg-green-900 text-white p-3 flex items-center justify-between">
