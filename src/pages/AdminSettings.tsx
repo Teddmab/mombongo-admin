@@ -123,7 +123,7 @@ export function AdminSettings() {
         </div>
       )}
 
-      <div className="section-header">
+      <div className="page-header">
         <div>
           <div className="section-kicker">Configuration</div>
           <h1 className="page-title">Paramètres de la plateforme</h1>

@@ -31,7 +31,7 @@ export function AdminFarmers() {
 
   return (
     <section className="page">
-      <div className="section-header">
+      <div className="page-header">
         <div>
           <div className="section-kicker">Agriculteurs</div>
           <h1 className="page-title">Partenaires agricoles</h1>
@@ -58,7 +58,7 @@ export function AdminFarmers() {
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table>
+            <table className="admin-table">
               <thead>
                 <tr>
                   <th>Nom</th>
@@ -188,7 +188,7 @@ export function AdminFarmerDetail() {
     <section className="page">
       <button onClick={() => navigate(-1)} className="text-sm text-blue-600 mb-4">← Retour</button>
 
-      <div className="section-header">
+      <div className="page-header">
         <div>
           <div className="section-kicker">Agriculteur</div>
           <h1 className="page-title">{(farmer.name as string) || "—"}</h1>

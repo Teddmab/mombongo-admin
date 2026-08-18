@@ -17,6 +17,7 @@ import {
   Wallet,
   ShieldCheck,
   Bell,
+  BellRing,
   Settings,
   Briefcase,
   AlertTriangle,
@@ -36,6 +37,7 @@ import {
   Coins,
   GraduationCap,
   Wheat,
+  Leaf,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -78,9 +80,11 @@ const NAV = [
   { to: "/admin/investments", icon: TrendingUp, label: "Investissements" },
   { to: "/admin/academia",      icon: GraduationCap, label: "Academia" },
   { to: "/admin/agro-exchange", icon: Wheat,         label: "Agro Exchange" },
+  { to: "/admin/agronomie",    icon: Leaf,           label: "Agronomie" },
   { to: "/admin/kyc", icon: ShieldCheck, label: "KYC & Conformité" },
   { to: "/admin/reports", icon: FileBarChart, label: "Rapports" },
   { to: "/admin/alerts", icon: Bell, label: "Alertes" },
+  { to: "/admin/notifications", icon: BellRing, label: "Notifications" },
   { to: "/admin/settings", icon: Settings, label: "Paramètres" },
 ];
 

@@ -80,7 +80,7 @@ export function AdminTransactions() {
 
   return (
     <section className="page">
-      <div className="section-header">
+      <div className="page-header">
         <div>
           <div className="section-kicker">Transactions</div>
           <h1 className="page-title">Journal financier</h1>
@@ -125,7 +125,7 @@ export function AdminTransactions() {
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table>
+            <table className="admin-table">
               <thead>
                 <tr>
                   <th>Référence</th>
@@ -232,7 +232,7 @@ export function AdminTransactionDetail() {
     <section className="page">
       <button onClick={() => navigate(-1)} className="text-sm text-blue-600 mb-4">← Retour</button>
 
-      <div className="section-header">
+      <div className="page-header">
         <div>
           <div className="section-kicker">Transaction</div>
           <h1 className="page-title" style={{ fontFamily: "monospace", fontSize: 18 }}>{tx.id}</h1>
