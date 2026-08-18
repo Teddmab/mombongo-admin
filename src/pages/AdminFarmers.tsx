@@ -10,7 +10,7 @@ import { adminService } from "@/services/admin.service";
 import { formatUsd } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, string> = {
-  pending: "En attente", approved: "Approuvé", active: "Actif", completed: "Terminé",
+  pending: "En attente", approved: "Approuvé", active: "Actif", completed: "Terminé", rejected: "Rejeté",
 };
 const STATUS_CLASS: Record<string, string> = {
   pending: "status-pending", approved: "status-active", active: "status-active", completed: "",
