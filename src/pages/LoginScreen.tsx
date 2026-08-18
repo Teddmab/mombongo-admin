@@ -78,12 +78,12 @@ export function LoginScreen() {
               </div>
 
               <div className="field">
-                <label htmlFor="password" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  Mot de passe
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label htmlFor="password">Mot de passe</label>
                   <button type="button" onClick={handleResetPassword} disabled={isResetting} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "hsl(var(--green-700))", padding: 0 }}>
                     {isResetting ? "Envoi..." : "Mot de passe oublié ?"}
                   </button>
-                </label>
+                </div>
                 <input id="password" data-testid="password-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
               </div>
 

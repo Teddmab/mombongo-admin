@@ -31,6 +31,7 @@ describe("LoginScreen", () => {
     mockedUseAuth.mockReturnValue({
       signIn,
       signOut: vi.fn(),
+      resetPassword: vi.fn(),
       user: null,
       role: null,
       loading: false,
@@ -65,6 +66,7 @@ describe("LoginScreen", () => {
     mockedUseAuth.mockReturnValue({
       signIn,
       signOut: vi.fn(),
+      resetPassword: vi.fn(),
       user: null,
       role: null,
       loading: false,
