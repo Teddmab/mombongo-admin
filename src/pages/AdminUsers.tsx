@@ -1,5 +1,5 @@
 import {
-  collection, getDocs, query, orderBy, limit, doc, updateDoc,
+  collection, getDocs, query, where, orderBy, limit, doc, updateDoc,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { Search, X, ChevronRight, ShieldCheck, CreditCard, Smartphone } from "lucide-react";
@@ -69,12 +69,11 @@ function UserDrawer({ user, onClose, onRefetch }: {
     queryFn: async () => {
       const snap = await getDocs(query(
         collection(db, "investments"),
+        where("investorId", "==", user.id),
         orderBy("investedAt", "desc"),
         limit(20),
       ));
-      return snap.docs
-        .filter(d => d.data().investorId === user.id)
-        .map(d => ({ id: d.id, ...d.data() } as InvRow));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as InvRow));
     },
   });
 
@@ -83,12 +82,11 @@ function UserDrawer({ user, onClose, onRefetch }: {
     queryFn: async () => {
       const snap = await getDocs(query(
         collection(db, "transactions"),
+        where("userId", "==", user.id),
         orderBy("createdAt", "desc"),
         limit(20),
       ));
-      return snap.docs
-        .filter(d => d.data().userId === user.id)
-        .map(d => ({ id: d.id, ...d.data() } as TxRow));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as TxRow));
     },
   });
 
