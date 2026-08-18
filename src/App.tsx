@@ -20,7 +20,9 @@ import { AdminAgroExchange } from "@/pages/AdminAgroExchange";
 import { AdminInvestments } from "@/pages/AdminInvestments";
 import AdminAgronomie from "@/pages/AdminAgronomie";
 import { AdminNotifications } from "@/pages/AdminNotifications";
+import { AdminRoles } from "@/pages/AdminRoles";
 import { LoginScreen } from "@/pages/LoginScreen";
+import { JoinScreen } from "@/pages/JoinScreen";
 import { AuthProvider } from "@/store/AuthContext";
 
 const queryClient = new QueryClient();
@@ -32,6 +34,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginScreen />} />
+            <Route path="/join"  element={<JoinScreen />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<Navigate to="/admin" replace />} />
               <Route path="/admin" element={<AdminLayout />}>
@@ -58,7 +61,8 @@ export default function App() {
                 <Route path="alerts" element={<AdminAlerts />} />
                 <Route path="agronomie" element={<AdminAgronomie />} />
                 <Route path="notifications" element={<AdminNotifications />} />
-                <Route path="settings" element={<AdminSettings />} />
+                <Route path="roles"         element={<AdminRoles />} />
+                <Route path="settings"      element={<AdminSettings />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
