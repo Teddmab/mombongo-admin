@@ -1,8 +1,4 @@
-# Cloudflare Pages build configuration
-# https://developers.cloudflare.com/pages/configuration/wrangler-configuration/
+# Cloudflare Pages configuration
+# Build command is set in the Cloudflare Pages dashboard: npm run build
 name = "mombongo-admin"
 pages_build_output_dir = "./dist"
-
-[build]
-command = "npm run build"
-
