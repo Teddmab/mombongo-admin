@@ -86,8 +86,9 @@ const NAV = [
   { to: "/admin/kyc", icon: ShieldCheck, label: "KYC & Conformité" },
   { to: "/admin/reports", icon: FileBarChart, label: "Rapports" },
   { to: "/admin/alerts", icon: Bell, label: "Alertes" },
-  { to: "/admin/notifications", icon: BellRing, label: "Notifications" },
-  { to: "/admin/settings", icon: Settings, label: "Paramètres" },
+  { to: "/admin/notifications", icon: BellRing,    label: "Notifications" },
+  { to: "/admin/roles",         icon: ShieldCheck, label: "Rôles & Accès" },
+  { to: "/admin/settings",      icon: Settings,    label: "Paramètres" },
 ];
 
 export function AdminLayout() {
