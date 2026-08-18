@@ -20,6 +20,7 @@ function resolveRole(email: string | null): UserRole | null {
     DEMO_ADMIN_EMAIL,
     "djuna@mombongo.coop",
     "patrick@mombongo.coop",
+    "teddmabulay@gmail.com",
   ]);
 
   return adminEmails.has(normalized) ? "admin" : "investor";
@@ -56,27 +57,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(() => readDemoSession() === null);
 
   useEffect(() => {
-    if (user) return;
-
+    // Always register — real Firebase auth takes precedence over demo session.
+    // Without this, demo-session users never get a real auth token attached to httpsCallable.
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser) {
-        setUser(null);
-        setRole(null);
-        setLoading(false);
-        return;
+      if (currentUser) {
+        // Real Firebase user: clear any stale demo session and use real credentials.
+        localStorage.removeItem(DEMO_SESSION_KEY);
+        setUser({
+          uid: currentUser.uid,
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+        });
+        setRole(resolveRole(currentUser.email));
+      } else {
+        // No Firebase user: fall back to demo session if present, otherwise clear.
+        const demoSession = readDemoSession();
+        if (demoSession) {
+          setUser(demoSession);
+          setRole(resolveRole(demoSession.email));
+        } else {
+          setUser(null);
+          setRole(null);
+        }
       }
-
-      setUser({
-        uid: currentUser.uid,
-        email: currentUser.email,
-        displayName: currentUser.displayName,
-      });
-      setRole(resolveRole(currentUser.email));
       setLoading(false);
     });
 
     return unsubscribe;
-  }, [user]);
+  }, []);
 
   async function signIn(email: string, password: string) {
     setLoading(true);
