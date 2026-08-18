@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
-import { AdminLayout, AdminUserDetail, AdminOpportunities, AdminReports, AdminReportDetail } from "@/pages/Admin";
+import { AdminLayout } from "@/pages/Admin";
+import { AdminOpportunities } from "@/pages/AdminOpportunities";
+import { AdminReports } from "@/pages/AdminReports";
 import { AdminDashboard } from "@/pages/AdminDashboard";
 import { AdminUsers } from "@/pages/AdminUsers";
 import { AdminFarmers, AdminFarmerDetail } from "@/pages/AdminFarmers";
@@ -35,7 +37,6 @@ export default function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="users" element={<AdminUsers />} />
-                <Route path="users/:id" element={<AdminUserDetail />} />
                 <Route path="farmers" element={<AdminFarmers />} />
                 <Route path="farmers/:id" element={<AdminFarmerDetail />} />
                 <Route path="products" element={<AdminProducts />} />
@@ -54,7 +55,6 @@ export default function App() {
                 <Route path="agro-exchange" element={<AdminAgroExchange />} />
                 <Route path="kyc" element={<AdminKyc />} />
                 <Route path="reports" element={<AdminReports />} />
-                <Route path="reports/:id" element={<AdminReportDetail />} />
                 <Route path="alerts" element={<AdminAlerts />} />
                 <Route path="agronomie" element={<AdminAgronomie />} />
                 <Route path="notifications" element={<AdminNotifications />} />

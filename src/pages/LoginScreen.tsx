@@ -7,8 +7,8 @@ import { useAuth } from "@/hooks/useAuth";
 export function LoginScreen() {
   const navigate = useNavigate();
   const { signIn, user, loading } = useAuth();
-  const [email, setEmail] = useState("admin@test.com");
-  const [password, setPassword] = useState("Mombongo2026!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -58,7 +58,7 @@ export function LoginScreen() {
                 <LockKeyhole size={18} />
                 {isSubmitting ? "Connexion..." : "Se connecter"}
               </button>
-              <span className="muted">Démo locale activée avec admin@test.com / Mombongo2026!</span>
+              <span className="muted">Réservé à l'équipe opérationnelle.</span>
             </div>
           </form>
 

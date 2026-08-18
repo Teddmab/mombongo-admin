@@ -12,7 +12,7 @@ interface AlertSummary {
   pendingKyc: number;
   pendingFarmers: number;
   failedTransactions: number;
-  overdueFinancing: number;
+  activeFinancing: number;
   lowWalletAlerts: number;
 }
 
@@ -33,13 +33,13 @@ function useAlertSummary() {
         getCountFromServer(query(collection(db, "users"), where("kycStatus", "==", "pending"))),
         getCountFromServer(query(collection(db, "farmers"), where("status", "==", "pending"))),
         getCountFromServer(query(collection(db, "transactions"), where("status", "==", "failed"))),
-        getCountFromServer(query(collection(db, "financing_applications"), where("status", "==", "overdue"))),
+        getCountFromServer(query(collection(db, "financing_applications"), where("status", "==", "active"))),
       ]);
       return {
         pendingKyc: kycSnap.data().count,
         pendingFarmers: farmersSnap.data().count,
         failedTransactions: txSnap.data().count,
-        overdueFinancing: finSnap.data().count,
+        activeFinancing: finSnap.data().count,
         lowWalletAlerts: 0,
       };
     },
@@ -88,11 +88,11 @@ const ALERT_CARDS = [
     href: "/admin/transactions",
   },
   {
-    key: "overdueFinancing" as const,
-    label: "Financements en retard",
+    key: "activeFinancing" as const,
+    label: "Financements actifs",
     icon: Banknote,
-    description: "Applications de financement en retard de remboursement",
-    severity: "critical",
+    description: "Applications de financement en cours de remboursement",
+    severity: "warning",
     href: "/admin/financing",
   },
 ] as const;
@@ -113,7 +113,7 @@ export function AdminAlerts() {
   const { data: failedTxs = [] } = useRecentFailedTransactions();
 
   const totalAlerts = summary
-    ? summary.pendingKyc + summary.failedTransactions + summary.overdueFinancing + summary.pendingFarmers
+    ? summary.pendingKyc + summary.failedTransactions + summary.pendingFarmers
     : 0;
 
   return (

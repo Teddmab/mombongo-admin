@@ -2,6 +2,7 @@ import type { UserRole } from "@/types";
 import {
   collection,
   getDocs,
+  getDoc,
   updateDoc,
   doc,
   query,
@@ -286,10 +287,9 @@ export class AdminService {
   async disburseTranche(appId: string, farmerId: string, trancheIndex: number, amount: number): Promise<void> {
     const appRef = doc(db, "financing_applications", appId);
     const farmerRef = doc(db, "farmers", farmerId);
-    const snap = await getDocs(query(collection(db, "financing_applications"), where("__name__", "==", appId), limit(1)));
-    if (snap.empty) throw new Error("Application not found");
-    const appDoc = snap.docs[0];
-    const tranches = [...(appDoc.data().tranches ?? [])];
+    const appSnap = await getDoc(appRef);
+    if (!appSnap.exists()) throw new Error("Application not found");
+    const tranches = [...(appSnap.data().tranches ?? [])];
     tranches[trancheIndex] = { ...tranches[trancheIndex], status: "disbursed", disbursedAt: serverTimestamp() };
     await updateDoc(appRef, { tranches });
     await updateDoc(farmerRef, { disbursedAmountUsd: increment(amount) });
