@@ -6,11 +6,13 @@ import { useAuth } from "@/hooks/useAuth";
 
 export function LoginScreen() {
   const navigate = useNavigate();
-  const { signIn, user, loading } = useAuth();
+  const { signIn, resetPassword, user, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     if (user) navigate("/", { replace: true });
@@ -32,6 +34,24 @@ export function LoginScreen() {
     }
   }
 
+  async function handleResetPassword() {
+    if (!email) {
+      setError("Entrez votre adresse email pour recevoir le lien de réinitialisation.");
+      return;
+    }
+    setError(null);
+    setIsResetting(true);
+    try {
+      await resetPassword(email);
+      setResetSent(true);
+    } catch (resetError) {
+      const message = resetError instanceof Error ? resetError.message : "Impossible d'envoyer l'email.";
+      setError(message);
+    } finally {
+      setIsResetting(false);
+    }
+  }
+
   return (
     <div className="login-layout">
       <div className="login-panel">
@@ -42,31 +62,48 @@ export function LoginScreen() {
             Accès réservé à l'équipe opérationnelle. Utilisez vos identifiants administrateur pour ouvrir le tableau de pilotage.
           </p>
 
-          <form onSubmit={handleSubmit} className="field-stack">
-            <div className="field">
-              <label htmlFor="email">Adresse email</label>
-              <input id="email" data-testid="email-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
-            </div>
-
-            <div className="field">
-              <label htmlFor="password">Mot de passe</label>
-              <input id="password" data-testid="password-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
-            </div>
-
-            <div className="button-row">
-              <button type="submit" data-testid="login-submit" className="button" disabled={loading || isSubmitting}>
-                <LockKeyhole size={18} />
-                {isSubmitting ? "Connexion..." : "Se connecter"}
+          {resetSent ? (
+            <div className="hint-box" style={{ marginTop: 0 }}>
+              <strong>Email envoyé.</strong> Vérifiez votre boîte mail — un lien de réinitialisation a été envoyé à <strong>{email}</strong>. Revenez ici une fois le mot de passe changé.
+              <br />
+              <button type="button" onClick={() => setResetSent(false)} style={{ marginTop: 10, background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "hsl(var(--green-700))", padding: 0 }}>
+                ← Retour à la connexion
               </button>
-              <span className="muted">Réservé à l'équipe opérationnelle.</span>
             </div>
-          </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="field-stack">
+              <div className="field">
+                <label htmlFor="email">Adresse email</label>
+                <input id="email" data-testid="email-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+              </div>
+
+              <div className="field">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label htmlFor="password">Mot de passe</label>
+                  <button type="button" onClick={handleResetPassword} disabled={isResetting} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "hsl(var(--green-700))", padding: 0 }}>
+                    {isResetting ? "Envoi..." : "Mot de passe oublié ?"}
+                  </button>
+                </div>
+                <input id="password" data-testid="password-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
+              </div>
+
+              <div className="button-row">
+                <button type="submit" data-testid="login-submit" className="button" disabled={loading || isSubmitting}>
+                  <LockKeyhole size={18} />
+                  {isSubmitting ? "Connexion..." : "Se connecter"}
+                </button>
+                <span className="muted">Réservé à l'équipe opérationnelle.</span>
+              </div>
+            </form>
+          )}
 
           {error ? <p data-testid="login-error" className="error-text">{error}</p> : null}
 
-          <div className="hint-box">
-            <strong>Accès restreint.</strong> Les comptes non-admin sont redirigés vers un écran d'accès refusé après authentification.
-          </div>
+          {!resetSent && (
+            <div className="hint-box">
+              <strong>Accès restreint.</strong> Les comptes non-admin sont redirigés vers un écran d'accès refusé après authentification.
+            </div>
+          )}
         </motion.div>
       </div>
 

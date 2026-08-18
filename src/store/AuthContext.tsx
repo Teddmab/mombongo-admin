@@ -1,5 +1,6 @@
 import {
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
 } from "firebase/auth";
@@ -109,6 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function resetPassword(email: string) {
+    await sendPasswordResetEmail(auth, email);
+  }
+
   async function signOut() {
     localStorage.removeItem(DEMO_SESSION_KEY);
     setUser(null);
@@ -122,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const value = useMemo(
-    () => ({ user, role, loading, signIn, signOut }),
+    () => ({ user, role, loading, signIn, signOut, resetPassword }),
     [loading, role, user],
   );
 
