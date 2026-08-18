@@ -17,6 +17,7 @@ import {
   Wallet,
   ShieldCheck,
   Bell,
+  BellRing,
   Settings,
   Briefcase,
   AlertTriangle,
@@ -83,6 +84,7 @@ const NAV = [
   { to: "/admin/kyc", icon: ShieldCheck, label: "KYC & Conformité" },
   { to: "/admin/reports", icon: FileBarChart, label: "Rapports" },
   { to: "/admin/alerts", icon: Bell, label: "Alertes" },
+  { to: "/admin/notifications", icon: BellRing, label: "Notifications" },
   { to: "/admin/settings", icon: Settings, label: "Paramètres" },
 ];
 

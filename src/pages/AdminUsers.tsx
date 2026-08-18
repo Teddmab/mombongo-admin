@@ -298,7 +298,7 @@ export function AdminUsers() {
         </div>
       )}
 
-      <div className="section-header">
+      <div className="page-header">
         <div>
           <div className="section-kicker">Utilisateurs</div>
           <h1 className="page-title">Comptes, rôles et conformité</h1>
@@ -316,7 +316,7 @@ export function AdminUsers() {
 
       <article className="panel">
         <div style={{ overflowX: "auto" }}>
-          <table>
+          <table className="admin-table">
             <thead>
               <tr>
                 <th>Nom</th>
