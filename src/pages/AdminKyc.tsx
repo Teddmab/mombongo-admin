@@ -86,7 +86,7 @@ export function AdminKyc() {
         </div>
       )}
 
-      <div className="section-header">
+      <div className="page-header">
         <div>
           <div className="section-kicker">Conformité</div>
           <h1 className="page-title">Vérification KYC</h1>
@@ -127,7 +127,7 @@ export function AdminKyc() {
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table>
+            <table className="admin-table">
               <thead>
                 <tr>
                   <th>Nom</th>

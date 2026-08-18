@@ -118,7 +118,7 @@ export function AdminAlerts() {
 
   return (
     <section className="page">
-      <div className="section-header">
+      <div className="page-header">
         <div>
           <div className="section-kicker">Alertes</div>
           <h1 className="page-title">Centre de surveillance</h1>
@@ -168,7 +168,7 @@ export function AdminAlerts() {
             </div>
           </div>
           <div style={{ overflowX: "auto" }}>
-            <table>
+            <table className="admin-table">
               <thead>
                 <tr>
                   <th>Référence</th>

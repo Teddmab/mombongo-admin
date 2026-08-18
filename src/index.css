@@ -389,6 +389,61 @@
     font-weight: 600;
   }
 
+  .pill.status-blocked,
+  .pill.status-failed,
+  .pill.status-error {
+    background: hsl(0 84% 95%);
+    color: hsl(0 72% 38%);
+  }
+
+  .pill.status-pending,
+  .pill.status-waiting {
+    background: hsl(38 92% 92%);
+    color: hsl(32 92% 30%);
+  }
+
+  .pill.status-active,
+  .pill.status-success,
+  .pill.status-completed {
+    background: hsl(140 39% 88%);
+    color: hsl(142 56% 27%);
+  }
+
+  /* ── Admin tables ──────────────────────────────────────────── */
+  .admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .admin-table th {
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: hsl(var(--gray-500));
+    border-bottom: 1px solid hsl(var(--gray-100));
+    background: hsl(var(--gray-50));
+    white-space: nowrap;
+  }
+
+  .admin-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid hsl(var(--gray-100));
+    color: hsl(var(--gray-800));
+    vertical-align: middle;
+  }
+
+  .admin-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .admin-table tbody tr:hover {
+    background: hsl(var(--gray-50));
+  }
+
   .user-chip {
     display: inline-flex;
     align-items: center;

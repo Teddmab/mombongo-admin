@@ -17,6 +17,7 @@ import { AdminOffers, AdminOfferCourseConfig } from "@/pages/AdminOffers";
 import { AdminAgroExchange } from "@/pages/AdminAgroExchange";
 import { AdminInvestments } from "@/pages/AdminInvestments";
 import AdminAgronomie from "@/pages/AdminAgronomie";
+import { AdminNotifications } from "@/pages/AdminNotifications";
 import { LoginScreen } from "@/pages/LoginScreen";
 import { AuthProvider } from "@/store/AuthContext";
 
@@ -56,6 +57,7 @@ export default function App() {
                 <Route path="reports/:id" element={<AdminReportDetail />} />
                 <Route path="alerts" element={<AdminAlerts />} />
                 <Route path="agronomie" element={<AdminAgronomie />} />
+                <Route path="notifications" element={<AdminNotifications />} />
                 <Route path="settings" element={<AdminSettings />} />
               </Route>
             </Route>
