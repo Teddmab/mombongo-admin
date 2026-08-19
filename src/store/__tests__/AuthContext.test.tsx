@@ -24,7 +24,7 @@ function AuthHarness() {
       <div data-testid="email">{user?.email ?? "none"}</div>
       <button
         type="button"
-        onClick={() => signIn("admin@test.com", "Mombongo2026!")}
+        onClick={() => signIn("admin@test.com", "Mombongo2026!").catch(() => undefined)}
       >
         demo-sign-in
       </button>
@@ -49,7 +49,7 @@ describe("AuthProvider", () => {
     vi.mocked(firebaseSignOut).mockResolvedValue(undefined);
   });
 
-  it("falls back to the local demo admin session when firebase sign-in fails", async () => {
+  it("throws when firebase sign-in fails (no demo fallback)", async () => {
     const user = userEvent.setup();
 
     render(
@@ -65,18 +65,20 @@ describe("AuthProvider", () => {
     await user.click(screen.getByRole("button", { name: "demo-sign-in" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("role")).toHaveTextContent("admin");
-      expect(screen.getByTestId("email")).toHaveTextContent("admin@test.com");
+      expect(screen.getByTestId("role")).toHaveTextContent("none");
+      expect(screen.getByTestId("email")).toHaveTextContent("none");
+      expect(screen.getByTestId("loading")).toHaveTextContent("false");
     });
 
     expect(signInWithEmailAndPassword).toHaveBeenCalledTimes(1);
-    expect(localStorage.setItem).toHaveBeenCalledWith(
-      "mombongo_admin_demo_session",
-      expect.stringContaining('"email":"admin@test.com"'),
-    );
   });
 
-  it("clears the demo session on sign-out", async () => {
+  it("clears state and calls firebaseSignOut on sign-out", async () => {
+    vi.mocked(onAuthStateChanged).mockImplementation((_, callback) => {
+      callback({ uid: "u1", email: "teddmabulay@gmail.com", displayName: "Teddy" } as never);
+      return vi.fn();
+    });
+
     const user = userEvent.setup();
 
     render(
@@ -84,12 +86,6 @@ describe("AuthProvider", () => {
         <AuthHarness />
       </AuthProvider>,
     );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("loading")).toHaveTextContent("false");
-    });
-
-    await user.click(screen.getByRole("button", { name: "demo-sign-in" }));
 
     await waitFor(() => {
       expect(screen.getByTestId("role")).toHaveTextContent("admin");
@@ -102,9 +98,6 @@ describe("AuthProvider", () => {
       expect(screen.getByTestId("email")).toHaveTextContent("none");
     });
 
-    expect(localStorage.removeItem).toHaveBeenCalledWith(
-      "mombongo_admin_demo_session",
-    );
     expect(firebaseSignOut).toHaveBeenCalledTimes(1);
   });
 });
