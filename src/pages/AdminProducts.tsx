@@ -6,7 +6,7 @@ import {
   Plus, CheckCircle2, XCircle, Clock, Pencil, ChevronRight,
   TrendingUp, Package, X, AlertTriangle,
 } from "lucide-react";
-import { functions, isDevMode } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
 
 /* ─── types ─────────────────────────────────────────────────────────────────── */
 
@@ -28,14 +28,6 @@ interface Product {
   investorsCount: number
   status: 'active' | 'inactive' | 'draft'
 }
-
-/* ─── mock data ──────────────────────────────────────────────────────────────── */
-
-const MOCK_PRODUCTS: Product[] = [
-  { id: "p1", name: "Pastèques Songololo", icon: "🍉", category: "agriculture", location: "Songololo", farmer: "Jean-Baptiste Mwamba", description: "Culture de pastèques.", roi: 22, minInvest: 200, duration: 45, stock: 180, unit: "bacs", targetUsd: 5000, invested: 3250, investorsCount: 16, status: "active" },
-  { id: "p2", name: "Tomates Matadi", icon: "🍅", category: "agriculture", location: "Matadi", farmer: "Marie Lutumba", description: "Tomates fraîches.", roi: 18, minInvest: 150, duration: 30, stock: 95, unit: "bacs", targetUsd: 3000, invested: 960, investorsCount: 6, status: "active" },
-  { id: "p3", name: "Café export Kivu", icon: "☕", category: "export", location: "Kivu", farmer: "Coopérative Kivu Arabica", description: "Café Arabica haute altitude.", roi: 28, minInvest: 500, duration: 90, stock: 500, unit: "kg", targetUsd: 20000, invested: 0, investorsCount: 0, status: "draft" },
-]
 
 /* ─── callable refs ──────────────────────────────────────────────────────────── */
 
@@ -224,17 +216,13 @@ export function AdminProducts() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-products'],
     queryFn: async () => {
-      if (isDevMode()) return { products: MOCK_PRODUCTS }
       const res = await getProductsAdminFn({})
       return res.data
     },
   })
 
   const statusMutation = useMutation({
-    mutationFn: (vars: { productId: string; status: string }) => {
-      if (isDevMode()) return Promise.resolve({ data: { success: true } })
-      return updateProductStatusFn(vars)
-    },
+    mutationFn: (vars: { productId: string; status: string }) => updateProductStatusFn(vars),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-products'] }),
   })
 

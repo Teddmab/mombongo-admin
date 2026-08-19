@@ -5,20 +5,15 @@ import {
   signOut as firebaseSignOut,
 } from "firebase/auth";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { auth, isDevMode } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import type { UserRole } from "@/types";
 import { AuthContext, type AuthUser } from "@/store/auth-context";
-
-const DEMO_ADMIN_EMAIL = "admin@test.com";
-const DEMO_ADMIN_PASSWORD = "Mombongo2026!";
-const DEMO_SESSION_KEY = "mombongo_admin_demo_session";
 
 function resolveRole(email: string | null): UserRole | null {
   if (!email) return null;
 
   const normalized = email.toLowerCase();
   const adminEmails = new Set([
-    DEMO_ADMIN_EMAIL,
     "djuna@mombongo.coop",
     "patrick@mombongo.coop",
     "teddmabulay@gmail.com",
@@ -27,43 +22,14 @@ function resolveRole(email: string | null): UserRole | null {
   return adminEmails.has(normalized) ? "admin" : "investor";
 }
 
-function readDemoSession(): AuthUser | null {
-  const raw = localStorage.getItem(DEMO_SESSION_KEY);
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw) as AuthUser;
-  } catch {
-    localStorage.removeItem(DEMO_SESSION_KEY);
-    return null;
-  }
-}
-
-function persistDemoSession(email: string) {
-  const demoUser: AuthUser = {
-    uid: "demo-admin",
-    email,
-    displayName: "Admin Demo",
-  };
-
-  localStorage.setItem(DEMO_SESSION_KEY, JSON.stringify(demoUser));
-  return demoUser;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => readDemoSession());
-  const [role, setRole] = useState<UserRole | null>(() =>
-    resolveRole(readDemoSession()?.email ?? null),
-  );
-  const [loading, setLoading] = useState(() => readDemoSession() === null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [role, setRole] = useState<UserRole | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Always register — real Firebase auth takes precedence over demo session.
-    // Without this, demo-session users never get a real auth token attached to httpsCallable.
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
-        // Real Firebase user: clear any stale demo session and use real credentials.
-        localStorage.removeItem(DEMO_SESSION_KEY);
         setUser({
           uid: currentUser.uid,
           email: currentUser.email,
@@ -71,15 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         setRole(resolveRole(currentUser.email));
       } else {
-        // No Firebase user: fall back to demo session if present, otherwise clear.
-        const demoSession = readDemoSession();
-        if (demoSession) {
-          setUser(demoSession);
-          setRole(resolveRole(demoSession.email));
-        } else {
-          setUser(null);
-          setRole(null);
-        }
+        setUser(null);
+        setRole(null);
       }
       setLoading(false);
     });
@@ -89,22 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signIn(email: string, password: string) {
     setLoading(true);
-
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      if (
-        isDevMode() &&
-        email.toLowerCase() === DEMO_ADMIN_EMAIL &&
-        password === DEMO_ADMIN_PASSWORD
-      ) {
-        const demoUser = persistDemoSession(email);
-        setUser(demoUser);
-        setRole("admin");
-        setLoading(false);
-        return;
-      }
-
       setLoading(false);
       throw error instanceof Error ? error : new Error("Connexion impossible.");
     }
@@ -115,14 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
-    localStorage.removeItem(DEMO_SESSION_KEY);
     setUser(null);
     setRole(null);
-
     try {
       await firebaseSignOut(auth);
     } catch {
-      // Ignore sign-out failures for local demo sessions.
+      // ignore
     }
   }
 

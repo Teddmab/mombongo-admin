@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import { functions, isDevMode } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
 import { formatUsd } from "@/lib/utils";
 
 interface Product {
@@ -19,19 +19,12 @@ interface Product {
   status: "active" | "inactive" | "draft";
 }
 
-const MOCK_PRODUCTS: Product[] = [
-  { id: "p1", name: "Pastèques Songololo", icon: "🍉", category: "agriculture", location: "Songololo", farmer: "Jean-Baptiste Mwamba", roi: 22, minInvest: 200, duration: 45, targetUsd: 5000, invested: 3250, investorsCount: 16, status: "active" },
-  { id: "p2", name: "Tomates Matadi", icon: "🍅", category: "agriculture", location: "Matadi", farmer: "Marie Lutumba", roi: 18, minInvest: 150, duration: 30, targetUsd: 3000, invested: 960, investorsCount: 6, status: "active" },
-  { id: "p3", name: "Café export Kivu", icon: "☕", category: "export", location: "Kivu", farmer: "Coopérative Kivu Arabica", roi: 28, minInvest: 500, duration: 90, targetUsd: 20000, invested: 0, investorsCount: 0, status: "draft" },
-];
-
 const getProductsAdminFn = httpsCallable<Record<string, never>, { products: Product[] }>(functions, "getProductsAdmin");
 
 function useProducts() {
   return useQuery({
     queryKey: ["admin-products-opps"],
     queryFn: async () => {
-      if (isDevMode()) return MOCK_PRODUCTS;
       const res = await getProductsAdminFn({});
       return (res.data as { products: Product[] }).products;
     },
