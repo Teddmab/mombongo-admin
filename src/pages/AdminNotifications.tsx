@@ -68,7 +68,7 @@ function TestPushSection() {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [screen, setScreen] = useState('')
-  const [result, setResult] = useState<{ sent: number; failed: number } | null>(null)
+  const [result, setResult] = useState<{ sent: number; failed: number; noTokens: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -87,7 +87,7 @@ function TestPushSection() {
       else payload.targetRole = target
 
       const res = await adminSendPushFn(payload)
-      setResult(res.data as { sent: number; failed: number })
+      setResult(res.data as { sent: number; failed: number; noTokens: number })
       void qc.invalidateQueries({ queryKey: ['admin-push-log'] })
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erreur inconnue')
@@ -191,9 +191,16 @@ function TestPushSection() {
         </button>
 
         {result && (
-          <p className="text-sm text-green-700 font-semibold">
-            ✓ Envoyé: {result.sent} · Échec: {result.failed}
-          </p>
+          <div className="text-sm space-y-1">
+            <p className={result.sent > 0 ? 'text-green-700 font-semibold' : 'text-amber-700 font-semibold'}>
+              ✓ Livré: {result.sent} · Échec FCM: {result.failed} · Sans token: {result.noTokens}
+            </p>
+            {result.noTokens > 0 && (
+              <p className="text-amber-600 text-[12px]">
+                ⚠ {result.noTokens} utilisateur{result.noTokens > 1 ? 's' : ''} n'a pas de token FCM enregistré — permission notifications non accordée dans l'app.
+              </p>
+            )}
+          </div>
         )}
         {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
