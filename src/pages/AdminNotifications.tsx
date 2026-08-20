@@ -201,19 +201,35 @@ function TestPushSection() {
   )
 }
 
+interface SkippedGroup {
+  crop: string
+  province: string
+  farmers: number
+  reason: 'no_price_doc' | 'zero_price'
+}
+
+interface PushDiag {
+  farmersFound: number
+  farmersSkipped: number
+  groupsFormed: number
+  skippedGroups: SkippedGroup[]
+  pushAttempts: number
+}
+
 function MorningPricePushSection() {
   const [loading, setLoading] = useState(false)
-  const [triggeredAt, setTriggeredAt] = useState<string | null>(null)
+  const [result, setResult] = useState<{ triggeredAt: string; diag: PushDiag } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const trigger = async () => {
     if (!window.confirm('Déclencher le push prix du matin pour tous les agriculteurs éligibles ?')) return
     setLoading(true)
     setError(null)
-    setTriggeredAt(null)
+    setResult(null)
     try {
       const res = await adminTriggerMorningPricePushFn({})
-      setTriggeredAt((res.data as { triggeredAt: string }).triggeredAt)
+      const data = res.data as { triggeredAt: string; diag: PushDiag }
+      setResult(data)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erreur inconnue')
     } finally {
@@ -245,11 +261,45 @@ function MorningPricePushSection() {
         >
           {loading ? 'En cours…' : '▶ Déclencher maintenant'}
         </button>
-        {triggeredAt && (
-          <p className="text-sm text-green-700 font-semibold">
-            ✓ Déclenché à {new Date(triggeredAt).toLocaleString('fr-FR')}
-          </p>
+
+        {result && (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2 text-[13px]">
+            <p className="font-bold text-gray-700">
+              ✓ Déclenché à {new Date(result.triggeredAt).toLocaleString('fr-FR')}
+            </p>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-gray-600">
+              <span>Agriculteurs trouvés</span>
+              <span className="font-semibold text-gray-900">{result.diag.farmersFound}</span>
+              <span>Sans profil complet (ignorés)</span>
+              <span className={`font-semibold ${result.diag.farmersSkipped > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
+                {result.diag.farmersSkipped}
+              </span>
+              <span>Groupes (culture + province)</span>
+              <span className="font-semibold text-gray-900">{result.diag.groupsFormed}</span>
+              <span>Push envoyés</span>
+              <span className={`font-semibold ${result.diag.pushAttempts === 0 ? 'text-red-600' : 'text-green-700'}`}>
+                {result.diag.pushAttempts}
+              </span>
+            </div>
+            {result.diag.skippedGroups.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
+                <p className="font-semibold text-amber-700">Groupes ignorés (prix manquants) :</p>
+                {result.diag.skippedGroups.map((g, i) => (
+                  <p key={i} className="text-amber-600">
+                    • {g.crop} / {g.province} — {g.farmers} agriculteur{g.farmers > 1 ? 's' : ''} —{' '}
+                    {g.reason === 'no_price_doc' ? 'aucun doc province_prices' : 'prix = 0'}
+                  </p>
+                ))}
+              </div>
+            )}
+            {result.diag.farmersSkipped > 0 && result.diag.groupsFormed === 0 && (
+              <p className="text-amber-700 font-semibold mt-1">
+                ⚠ Aucun agriculteur n'a de champ <code className="font-mono text-xs">cropType</code> et <code className="font-mono text-xs">province</code> dans son profil Firestore.
+              </p>
+            )}
+          </div>
         )}
+
         {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
     </article>
