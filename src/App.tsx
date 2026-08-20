@@ -21,6 +21,7 @@ import { AdminInvestments } from "@/pages/AdminInvestments";
 import AdminAgronomie from "@/pages/AdminAgronomie";
 import { AdminNotifications } from "@/pages/AdminNotifications";
 import { AdminRoles } from "@/pages/AdminRoles";
+import { AdminDidYouKnow } from "@/pages/AdminDidYouKnow";
 import { LoginScreen } from "@/pages/LoginScreen";
 import { JoinScreen } from "@/pages/JoinScreen";
 import { AuthProvider } from "@/store/AuthContext";
@@ -62,6 +63,7 @@ export default function App() {
                 <Route path="agronomie" element={<AdminAgronomie />} />
                 <Route path="notifications" element={<AdminNotifications />} />
                 <Route path="roles"         element={<AdminRoles />} />
+                <Route path="did-you-know" element={<AdminDidYouKnow />} />
                 <Route path="settings"      element={<AdminSettings />} />
               </Route>
             </Route>
