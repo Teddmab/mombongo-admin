@@ -38,6 +38,7 @@ import {
   GraduationCap,
   Wheat,
   Leaf,
+  Film,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -87,6 +88,7 @@ const NAV = [
   { to: "/admin/reports", icon: FileBarChart, label: "Rapports" },
   { to: "/admin/alerts", icon: Bell, label: "Alertes" },
   { to: "/admin/notifications", icon: BellRing,    label: "Notifications" },
+  { to: "/admin/videos",        icon: Film,        label: "Vidéos" },
   { to: "/admin/roles",         icon: ShieldCheck, label: "Rôles & Accès" },
   { to: "/admin/settings",      icon: Settings,    label: "Paramètres" },
 ];

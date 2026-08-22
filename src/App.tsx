@@ -20,6 +20,7 @@ import { AdminAgroExchange } from "@/pages/AdminAgroExchange";
 import { AdminInvestments } from "@/pages/AdminInvestments";
 import AdminAgronomie from "@/pages/AdminAgronomie";
 import { AdminNotifications } from "@/pages/AdminNotifications";
+import { AdminVideos } from "@/pages/AdminVideos";
 import { AdminRoles } from "@/pages/AdminRoles";
 import { LoginScreen } from "@/pages/LoginScreen";
 import { JoinScreen } from "@/pages/JoinScreen";
@@ -61,6 +62,7 @@ export default function App() {
                 <Route path="alerts" element={<AdminAlerts />} />
                 <Route path="agronomie" element={<AdminAgronomie />} />
                 <Route path="notifications" element={<AdminNotifications />} />
+                <Route path="videos"        element={<AdminVideos />} />
                 <Route path="roles"         element={<AdminRoles />} />
                 <Route path="settings"      element={<AdminSettings />} />
               </Route>
