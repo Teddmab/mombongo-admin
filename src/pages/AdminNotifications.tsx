@@ -3,10 +3,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { httpsCallable } from 'firebase/functions'
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
 import { db, functions } from '@/lib/firebase'
-import { Bell, Send, Zap } from 'lucide-react'
+import { Bell, FlaskConical, Send, Zap } from 'lucide-react'
 
 const adminSendPushFn = httpsCallable(functions, 'adminSendPush')
 const adminTriggerMorningPricePushFn = httpsCallable(functions, 'adminTriggerMorningPricePush')
+const adminTestStatusPushFn = httpsCallable(functions, 'adminTestStatusPush')
 
 interface PushLog {
   id: string
@@ -53,6 +54,7 @@ export function AdminNotifications() {
 
       <TestPushSection />
       <MorningPricePushSection />
+      <StatusTriggerTestSection />
       <PushLogSection />
     </section>
   )
@@ -300,6 +302,111 @@ function MorningPricePushSection() {
           </div>
         )}
 
+        {error && <p className="text-sm text-red-600">{error}</p>}
+      </div>
+    </article>
+  )
+}
+
+const TRIGGER_TYPES = [
+  { value: 'financing',    label: 'Financement — statut en cours d\'examen' },
+  { value: 'listing_view', label: 'Bourse — premier acheteur intéressé' },
+  { value: 'agent_report', label: 'Exploitation — rapport d\'agent reçu' },
+]
+
+function StatusTriggerTestSection() {
+  const qc = useQueryClient()
+  const [type, setType] = useState(TRIGGER_TYPES[0].value)
+  const [targetUid, setTargetUid] = useState('')
+  const [result, setResult] = useState<{ sent: number; failed: number; noTokens: boolean } | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const run = async () => {
+    if (!targetUid.trim()) return
+    setLoading(true)
+    setError(null)
+    setResult(null)
+    try {
+      const res = await adminTestStatusPushFn({ type, targetUid: targetUid.trim() })
+      setResult(res.data as { sent: number; failed: number; noTokens: boolean })
+      void qc.invalidateQueries({ queryKey: ['admin-push-log'] })
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erreur inconnue')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <article className="panel">
+      <div className="section-header">
+        <div>
+          <div className="section-kicker">Tests SU-01-05</div>
+          <h2 className="card-title">Tester les notifications de statut</h2>
+        </div>
+        <FlaskConical size={18} className="text-gray-300" />
+      </div>
+      <div className="p-5 space-y-4">
+        <p className="page-copy">
+          Déclenche un push de test pour un type d'événement donné vers un UID spécifique.
+          Vérifie la livraison FCM et l'écriture dans le panel in-app — sans modifier de données réelles.
+        </p>
+
+        <div>
+          <label className="form-label">Type d'événement</label>
+          <select
+            className="form-select"
+            value={type}
+            onChange={e => setType(e.target.value)}
+          >
+            {TRIGGER_TYPES.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="form-label">UID cible</label>
+          <input
+            className="form-input"
+            placeholder="UID Firebase Auth de l'utilisateur à tester"
+            value={targetUid}
+            onChange={e => setTargetUid(e.target.value)}
+          />
+        </div>
+
+        <button
+          type="button"
+          className="btn-primary"
+          style={{ height: 40 }}
+          onClick={run}
+          disabled={loading || !targetUid.trim()}
+        >
+          {loading ? 'Envoi en cours…' : '▶ Lancer le test'}
+        </button>
+
+        {result && (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-[13px] space-y-1">
+            {result.noTokens ? (
+              <p className="text-amber-600 font-semibold">
+                ⚠ Aucun token FCM enregistré pour cet utilisateur.
+              </p>
+            ) : result.sent > 0 ? (
+              <p className="text-green-700 font-semibold">
+                ✓ Push livré — {result.sent} appareil{result.sent > 1 ? 's' : ''} ·{' '}
+                {result.failed} échec{result.failed !== 1 ? 's' : ''}
+              </p>
+            ) : (
+              <p className="text-red-600 font-semibold">
+                ✗ Push non livré — {result.failed} échec{result.failed !== 1 ? 's' : ''}
+              </p>
+            )}
+            <p className="text-gray-500">
+              Notification in-app écrite. Vérifiez le panel de notification dans l'app.
+            </p>
+          </div>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
     </article>
