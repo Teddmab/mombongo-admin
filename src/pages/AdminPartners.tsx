@@ -47,7 +47,7 @@ function fmtDate(ts?: { seconds: number }) {
 export function AdminPartners() {
   const qc = useQueryClient();
 
-  const { data: partners = [], isLoading } = useQuery({
+  const { data: partners = [], isLoading, error } = useQuery({
     queryKey: ["admin-partners"],
     queryFn: async () => {
       const snap = await getDocs(query(collection(db, "partners"), orderBy("createdAt", "desc")));
@@ -79,6 +79,10 @@ export function AdminPartners() {
           <div className="space-y-2 p-4">
             {[1, 2, 3].map((n) => <div key={n} className="h-10 bg-gray-100 rounded animate-pulse" />)}
           </div>
+        ) : error ? (
+          <p style={{ padding: 20, fontSize: 13, color: "hsl(var(--danger))" }}>
+            Impossible de charger les partenaires : {error instanceof Error ? error.message : "erreur inconnue"}
+          </p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table className="admin-table">

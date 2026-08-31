@@ -60,7 +60,7 @@ export function AdminPartnerInvoices() {
   const [partnerFilter, setPartnerFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  const { data: all = [], isLoading } = useQuery({
+  const { data: all = [], isLoading, error } = useQuery({
     queryKey: ["admin-partner-invoices"],
     queryFn: async () => {
       const snap = await getDocs(
@@ -111,6 +111,10 @@ export function AdminPartnerInvoices() {
           <div className="space-y-2 p-4">
             {[1, 2, 3, 4, 5].map((n) => <div key={n} className="h-10 bg-gray-100 rounded animate-pulse" />)}
           </div>
+        ) : error ? (
+          <p style={{ padding: 20, fontSize: 13, color: "hsl(var(--danger))" }}>
+            Impossible de charger les factures : {error instanceof Error ? error.message : "erreur inconnue"}
+          </p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table className="admin-table">
@@ -173,7 +177,7 @@ function FailedNotificationsSection({ onRetried }: { onRetried: () => void }) {
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: failures = [], isLoading } = useQuery({
+  const { data: failures = [], isLoading, error: queryError } = useQuery({
     queryKey: ["admin-partner-notification-failures"],
     queryFn: async () => {
       const snap = await getDocs(
@@ -197,7 +201,7 @@ function FailedNotificationsSection({ onRetried }: { onRetried: () => void }) {
     }
   };
 
-  if (!isLoading && failures.length === 0) return null;
+  if (!isLoading && !queryError && failures.length === 0) return null;
 
   return (
     <article className="panel" style={{ marginTop: 24 }}>
@@ -207,6 +211,11 @@ function FailedNotificationsSection({ onRetried }: { onRetried: () => void }) {
           <h2 className="card-title">Notifications échouées</h2>
         </div>
       </div>
+      {queryError ? (
+        <p style={{ padding: 20, fontSize: 13, color: "hsl(var(--danger))" }}>
+          Impossible de charger les notifications échouées : {queryError instanceof Error ? queryError.message : "erreur inconnue"}
+        </p>
+      ) : (
       <div style={{ overflowX: "auto" }}>
         <table className="admin-table">
           <thead>
@@ -242,6 +251,7 @@ function FailedNotificationsSection({ onRetried }: { onRetried: () => void }) {
           </tbody>
         </table>
       </div>
+      )}
       {error && <p className="text-sm text-red-600 p-4">{error}</p>}
     </article>
   );
