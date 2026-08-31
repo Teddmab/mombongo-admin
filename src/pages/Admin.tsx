@@ -41,6 +41,7 @@ import {
   Film,
   Handshake,
   KeyRound,
+  Tags,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -88,7 +89,8 @@ const NAV = [
   { to: "/admin/agronomie",    icon: Leaf,           label: "Agronomie" },
   { to: "/admin/kyc", icon: ShieldCheck, label: "KYC & Conformité" },
   { to: "/admin/partners", icon: KeyRound, label: "Partenaires API" },
-  { to: "/admin/partner-invoices", icon: Handshake, label: "Factures partenaires" },
+  { to: "/admin/partner-invoices", icon: Handshake, label: "Factures" },
+  { to: "/admin/harvest-offers", icon: Tags, label: "Offres récolte" },
   { to: "/admin/reports", icon: FileBarChart, label: "Rapports" },
   { to: "/admin/alerts", icon: Bell, label: "Alertes" },
   { to: "/admin/notifications", icon: BellRing,    label: "Notifications" },

@@ -25,6 +25,7 @@ import { AdminRoles } from "@/pages/AdminRoles";
 import { AdminDidYouKnow } from "@/pages/AdminDidYouKnow";
 import { AdminPartnerInvoices, AdminPartnerInvoiceDetail } from "@/pages/AdminPartnerInvoices";
 import { AdminPartners, AdminPartnerDetail } from "@/pages/AdminPartners";
+import { AdminHarvestOffers } from "@/pages/AdminHarvestOffers";
 import { AdminHarvestOfferQA } from "@/pages/AdminHarvestOfferQA";
 import { LoginScreen } from "@/pages/LoginScreen";
 import { JoinScreen } from "@/pages/JoinScreen";
@@ -66,6 +67,7 @@ export default function App() {
                 <Route path="partners/:id" element={<AdminPartnerDetail />} />
                 <Route path="partner-invoices" element={<AdminPartnerInvoices />} />
                 <Route path="partner-invoices/:id" element={<AdminPartnerInvoiceDetail />} />
+                <Route path="harvest-offers" element={<AdminHarvestOffers />} />
                 <Route path="qa/harvest-offers" element={<AdminHarvestOfferQA />} />
                 <Route path="reports" element={<AdminReports />} />
                 <Route path="alerts" element={<AdminAlerts />} />
