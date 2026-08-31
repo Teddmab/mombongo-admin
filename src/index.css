@@ -747,4 +747,346 @@
       display: none;
     }
   }
+
+  /* ── ADM-UI-01: grouped sidebar ───────────────────────────── */
+  .admin-brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sidebar-close {
+    display: none;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    padding: 4px;
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    min-height: 0; /* flex children need this for overflow-y:auto to scroll instead of clipping */
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0 -4px;
+    padding: 0 4px;
+  }
+
+  .sidebar-group-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 10px 6px 4px;
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .sidebar-group-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+  }
+
+  .sidebar-group-items {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+  }
+
+  .sidebar-single {
+    margin-top: 2px;
+  }
+
+  /* ── ADM-UI-01: responsive sidebar / drawer ───────────────── */
+  @media (max-width: 1024px) {
+    .admin-sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 40;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0);
+    }
+    .admin-sidebar.open {
+      transform: translateX(0);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+    }
+    .sidebar-close {
+      display: inline-flex;
+    }
+    .sidebar-menu-btn {
+      display: inline-flex !important;
+    }
+  }
+
+  .sidebar-menu-btn {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: hsl(var(--gray-700));
+    padding: 6px;
+    border-radius: 8px;
+  }
+
+  .sidebar-menu-btn:hover {
+    background: hsl(var(--gray-100));
+  }
+
+  /* ── ADM-UI-01: command center ────────────────────────────── */
+  .greeting-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .greeting-title {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 900;
+    color: hsl(var(--gray-900));
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .greeting-date {
+    font-size: 13px;
+    color: hsl(var(--gray-500));
+    font-weight: 600;
+  }
+
+  .avatar-chip {
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    background: hsl(var(--green-700));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .bell-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    background: white;
+    border: 1px solid hsl(var(--gray-200));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: hsl(var(--gray-700));
+    cursor: pointer;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+
+  .bell-btn:hover {
+    background: hsl(var(--gray-50));
+  }
+
+  .priority-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+  }
+
+  .priority-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 16px;
+    border: 1px solid transparent;
+    text-decoration: none;
+    transition: transform 0.15s ease;
+  }
+
+  .priority-card:hover {
+    transform: translateY(-1px);
+  }
+
+  .priority-card.tone-green {
+    background: hsl(var(--green-50));
+    border-color: hsl(var(--green-100));
+  }
+  .priority-card.tone-amber {
+    background: hsl(var(--amber-50));
+    border-color: hsl(var(--amber-100));
+  }
+  .priority-card.tone-red {
+    background: hsl(0 84% 96%);
+    border-color: hsl(0 84% 90%);
+  }
+  .priority-card.tone-gray {
+    background: hsl(var(--gray-50));
+    border-color: hsl(var(--gray-200));
+  }
+
+  .priority-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .tone-green .priority-icon { background: hsl(var(--green-700)); color: white; }
+  .tone-amber .priority-icon { background: hsl(var(--amber-400)); color: hsl(var(--amber-900)); }
+  .tone-red .priority-icon   { background: hsl(0 72% 51%); color: white; }
+  .tone-gray .priority-icon  { background: hsl(var(--gray-300, 220 13% 85%)); color: hsl(var(--gray-600, 220 9% 40%)); }
+
+  .priority-count {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 900;
+    color: hsl(var(--gray-900));
+    line-height: 1.1;
+  }
+
+  .priority-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: hsl(var(--gray-800));
+    margin-top: 2px;
+  }
+
+  .priority-sub {
+    font-size: 11px;
+    color: hsl(var(--gray-500));
+    margin-top: 1px;
+  }
+
+  .period-toggle {
+    display: inline-flex;
+    background: hsl(var(--gray-100));
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .period-btn {
+    border: none;
+    background: none;
+    padding: 5px 11px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: hsl(var(--gray-500));
+    cursor: pointer;
+  }
+
+  .period-btn.active {
+    background: white;
+    color: hsl(var(--gray-900));
+    box-shadow: var(--shadow-card);
+  }
+
+  .ops-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid hsl(var(--gray-50));
+  }
+  .ops-row:last-child {
+    border-bottom: none;
+  }
+
+  .ops-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+  }
+
+  .quick-action-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid hsl(var(--gray-200));
+    background: white;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .quick-action-card:hover {
+    border-color: hsl(var(--green-700));
+    background: hsl(var(--green-50));
+  }
+
+  /* .outline-button existed only as a dead class reference (AdminHeader
+     was never mounted before ADM-UI-01) — defining it for real here. */
+  .outline-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: white;
+    color: hsl(var(--gray-700));
+    border: 1px solid hsl(var(--gray-200));
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .outline-button:hover {
+    background: hsl(var(--gray-50));
+    border-color: hsl(var(--gray-300, 220 13% 85%));
+  }
+
+  @media (max-width: 640px) {
+    .admin-header .user-chip {
+      display: none;
+    }
+    .admin-header .outline-button span {
+      display: none;
+    }
+    .admin-header .outline-button {
+      padding: 8px;
+    }
+  }
+
+  .stale-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: hsl(var(--amber-700));
+    background: hsl(var(--amber-50));
+    border: 1px solid hsl(var(--amber-100));
+    border-radius: 10px;
+    padding: 8px 12px;
+  }
 }
