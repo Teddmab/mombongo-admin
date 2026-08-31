@@ -132,16 +132,22 @@ jobs:
   # JOB 4: Deploy Firebase Rules + Indexes
   # ─────────────────────────────────────────
   deploy-firebase:
-    name: Deploy Firebase Rules
+    name: Deploy Firestore Indexes + Storage
     runs-on: ubuntu-latest
     needs: build
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - name: Deploy Firestore rules + indexes + storage rules
+      # firestore:rules deliberately excluded — mombongo-functions is now the
+      # sole owner of firestore.rules deploys. This repo and mombongo-web
+      # used to each deploy their own, different rules on every merge,
+      # silently overwriting one another (see mombongo-functions/firestore.rules
+      # header comment for the full story — this is what caused the "admin
+      # console sees 0 partners" bug during Sprint AI). Don't add it back here.
+      - name: Deploy Firestore indexes + storage rules
         run: |
           bunx --package firebase-tools firebase deploy \
-            --only firestore:rules,firestore:indexes,storage \
+            --only firestore:indexes,storage \
             --project ${{ env.FIREBASE_PROJECT }} \
             --token ${{ secrets.FIREBASE_TOKEN }}
 
