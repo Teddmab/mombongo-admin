@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
-import { collection, getDocs, query, orderBy, where } from "firebase/firestore";
-import { Copy, Handshake } from "lucide-react";
+import { collection, getDocs, getDoc, doc, query, orderBy, where } from "firebase/firestore";
+import { Copy, Eye, EyeOff, Handshake } from "lucide-react";
 import { db, functions } from "@/lib/firebase";
 
 interface MerchantOption {
@@ -20,6 +21,8 @@ interface PartnerRow {
   testMode?: boolean;
   webhookUrl?: string | null;
   merchantUid?: string;
+  hmacSecret?: string;
+  outboundHmacSecret?: string;
   createdAt?: { seconds: number };
 }
 
@@ -46,6 +49,7 @@ function fmtDate(ts?: { seconds: number }) {
 
 export function AdminPartners() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: partners = [], isLoading, error } = useQuery({
     queryKey: ["admin-partners"],
@@ -94,6 +98,7 @@ export function AdminPartners() {
                   <th>Mode</th>
                   <th>Statut</th>
                   <th>Créé le</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -111,11 +116,19 @@ export function AdminPartners() {
                       </span>
                     </td>
                     <td style={{ fontSize: 12 }}>{fmtDate(p.createdAt)}</td>
+                    <td>
+                      <button
+                        onClick={() => navigate(`/admin/partners/${p.id}`)}
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        Détails
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {partners.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: "center", color: "var(--color-muted)", padding: "32px" }}>
+                    <td colSpan={7} style={{ textAlign: "center", color: "var(--color-muted)", padding: "32px" }}>
                       Aucun partenaire pour le moment
                     </td>
                   </tr>
@@ -308,7 +321,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function SecretRow({ label, value, copied, onCopy }: { label: string; value: string; copied: boolean; onCopy: () => void }) {
+function SecretRow({
+  label, value, copied, onCopy, maskable,
+}: {
+  label: string; value: string; copied: boolean; onCopy: () => void; maskable?: boolean;
+}) {
+  // Masked by default when maskable (the detail-view reveal case) — the
+  // creation-time success panel doesn't pass maskable, since that's the
+  // one moment the value is meant to be read off the screen directly.
+  const [revealed, setRevealed] = useState(!maskable);
+  const display = revealed ? value : "•".repeat(Math.min(40, value.length));
+
   return (
     <div>
       <p style={{ fontSize: 12, color: "var(--color-muted)", marginBottom: 4 }}>{label}</p>
@@ -317,12 +340,132 @@ function SecretRow({ label, value, copied, onCopy }: { label: string; value: str
         background: "hsl(var(--gray-50))", border: "1px solid hsl(var(--gray-200))",
         borderRadius: 10, padding: "8px 12px",
       }}>
-        <span style={{ flex: 1, fontSize: 12, fontFamily: "monospace", wordBreak: "break-all" }}>{value}</span>
+        <span style={{ flex: 1, fontSize: 12, fontFamily: "monospace", wordBreak: "break-all" }}>{display}</span>
+        {maskable && (
+          <button onClick={() => setRevealed((r) => !r)} style={{ background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
+            {revealed ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        )}
         <button onClick={onCopy} style={{ background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
           <Copy size={15} />
         </button>
       </div>
       {copied && <p style={{ fontSize: 12, color: "hsl(var(--success))", marginTop: 4 }}>Copié !</p>}
     </div>
+  );
+}
+
+/* ─── Detail ────────────────────────────────────────────────────────────── */
+
+export function AdminPartnerDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const { data: partner, isLoading, error } = useQuery({
+    queryKey: ["admin-partner", id],
+    queryFn: async () => {
+      const snap = await getDoc(doc(db, "partners", id!));
+      if (!snap.exists()) return null;
+      return { id: snap.id, ...snap.data() } as PartnerRow;
+    },
+    enabled: !!id,
+  });
+
+  function copy(field: string, value: string) {
+    void navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  }
+
+  if (isLoading) {
+    return (
+      <section className="page">
+        <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
+      </section>
+    );
+  }
+  if (error) {
+    return (
+      <section className="page">
+        <p style={{ padding: 20, fontSize: 13, color: "hsl(var(--danger))" }}>
+          Impossible de charger ce partenaire : {error instanceof Error ? error.message : "erreur inconnue"}
+        </p>
+      </section>
+    );
+  }
+  if (!partner) {
+    return (
+      <section className="page">
+        <p className="text-center text-gray-400 py-20">Partenaire introuvable</p>
+      </section>
+    );
+  }
+
+  const fields: [string, string][] = [
+    ["Nom", partner.name],
+    ["Mode", partner.testMode ? "Test" : "Live"],
+    ["Statut", partner.active ? "Actif" : "Inactif"],
+    ["Webhook", partner.webhookUrl || "non configuré"],
+    ["Compte marchand (uid)", partner.merchantUid || "—"],
+    ["Créé le", fmtDate(partner.createdAt)],
+  ];
+
+  return (
+    <section className="page">
+      <button onClick={() => navigate(-1)} className="text-sm text-blue-600 mb-4">← Retour</button>
+
+      <div className="page-header">
+        <div>
+          <div className="section-kicker">Partenaire</div>
+          <h1 className="page-title" style={{ fontFamily: "monospace", fontSize: 18 }}>{partner.id}</h1>
+        </div>
+        <span className={`pill ${partner.active ? "status-active" : "status-blocked"}`}>
+          {partner.active ? "actif" : "inactif"}
+        </span>
+      </div>
+
+      <article className="panel" style={{ maxWidth: 560 }}>
+        <dl>
+          {fields.map(([k, v]) => (
+            <div key={k} className="flex justify-between border-b border-gray-50 py-2.5 last:border-0">
+              <dt className="text-sm text-gray-500">{k}</dt>
+              <dd className="text-sm font-semibold text-gray-900">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </article>
+
+      <article className="panel" style={{ maxWidth: 560, marginTop: 16 }}>
+        <div className="section-header">
+          <div>
+            <p className="card-title">Secrets API</p>
+            <p className="page-subtitle" style={{ margin: 0 }}>
+              Masqués par défaut — cliquez sur l'œil pour afficher avant de copier.
+            </p>
+          </div>
+        </div>
+        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+          {partner.hmacSecret && (
+            <SecretRow
+              label="hmacSecret (le partenaire signe ses appels entrants avec ceci)"
+              value={partner.hmacSecret}
+              maskable
+              copied={copiedField === "hmac"}
+              onCopy={() => copy("hmac", partner.hmacSecret!)}
+            />
+          )}
+          {partner.outboundHmacSecret && (
+            <SecretRow
+              label="outboundHmacSecret (Mombongo signe les notifications sortantes avec ceci)"
+              value={partner.outboundHmacSecret}
+              maskable
+              copied={copiedField === "outbound"}
+              onCopy={() => copy("outbound", partner.outboundHmacSecret!)}
+            />
+          )}
+        </div>
+      </article>
+    </section>
   );
 }
