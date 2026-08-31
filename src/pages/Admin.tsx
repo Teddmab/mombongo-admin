@@ -38,6 +38,7 @@ import {
   GraduationCap,
   Wheat,
   Leaf,
+  Film,
   Handshake,
   KeyRound,
 } from "lucide-react";
@@ -91,6 +92,7 @@ const NAV = [
   { to: "/admin/reports", icon: FileBarChart, label: "Rapports" },
   { to: "/admin/alerts", icon: Bell, label: "Alertes" },
   { to: "/admin/notifications", icon: BellRing,    label: "Notifications" },
+  { to: "/admin/videos",        icon: Film,        label: "Vidéos" },
   { to: "/admin/did-you-know",  icon: Leaf,        label: "Le saviez-vous ?" },
   { to: "/admin/roles",         icon: ShieldCheck, label: "Rôles & Accès" },
   { to: "/admin/settings",      icon: Settings,    label: "Paramètres" },
