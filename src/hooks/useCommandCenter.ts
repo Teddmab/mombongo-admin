@@ -31,6 +31,7 @@ export function useInvoiceSummary() {
       return { pendingCount: snap.size, overdueCount };
     },
     staleTime: 60_000,
+    refetchInterval: 60_000, // matches useAdminKpis' cadence so the whole dashboard refreshes together
   });
 }
 
@@ -46,6 +47,7 @@ export function usePartnerSummary() {
       return { activeCount: snap.data().count };
     },
     staleTime: 60_000,
+    refetchInterval: 60_000,
   });
 }
 
@@ -64,6 +66,7 @@ export function useOperationalAlertCount() {
       return { count: farmersSnap.data().count + txSnap.data().count };
     },
     staleTime: 60_000,
+    refetchInterval: 60_000,
   });
 }
 

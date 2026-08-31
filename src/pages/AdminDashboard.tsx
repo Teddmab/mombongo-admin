@@ -104,9 +104,12 @@ const PERIODS: { value: PaymentActivityPeriod; label: string }[] = [
 export function AdminDashboard() {
   const { user } = useAuth();
   const kpis = useAdminKpis();
-  const { data: invoiceSummary, isLoading: invoicesLoading, error: invoicesError } = useInvoiceSummary();
-  const { data: partnerSummary, isLoading: partnersLoading, error: partnersError } = usePartnerSummary();
-  const { data: alertCount, isLoading: alertsLoading, error: alertsError } = useOperationalAlertCount();
+  const invoiceQuery = useInvoiceSummary();
+  const partnerQuery = usePartnerSummary();
+  const alertQuery = useOperationalAlertCount();
+  const { data: invoiceSummary, isLoading: invoicesLoading, error: invoicesError } = invoiceQuery;
+  const { data: partnerSummary, isLoading: partnersLoading, error: partnersError } = partnerQuery;
+  const { data: alertCount, isLoading: alertsLoading, error: alertsError } = alertQuery;
   const [period, setPeriod] = useState<PaymentActivityPeriod>(30);
   const { data: activity = [], isLoading: activityLoading } = usePaymentActivity(period);
   const { feed, lastUpdated } = useActivityFeed();
@@ -116,9 +119,31 @@ export function AdminDashboard() {
     () => new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }),
     [],
   );
-  const lastUpdatedLabel = lastUpdated
+  const liveFeedLabel = lastUpdated
     ? new Date(lastUpdated).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
     : null;
+
+  // KPI/priority queries refetch every 60s (see useCommandCenter.ts). Use the
+  // OLDEST of their fetch timestamps (not the newest) — if even one card
+  // hasn't refreshed recently, the dashboard as a whole should read as
+  // stale rather than hiding that behind the other cards' fresher data.
+  //
+  // Staleness must keep re-evaluating even when nothing else re-renders
+  // the component (e.g. queries are stuck retrying in the background), so
+  // `now` ticks on an interval instead of reading Date.now() during render.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const kpiUpdatedAt = Math.min(
+    invoiceQuery.dataUpdatedAt, partnerQuery.dataUpdatedAt, alertQuery.dataUpdatedAt,
+  );
+  const kpiUpdatedLabel = kpiUpdatedAt
+    ? new Date(kpiUpdatedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    : null;
+  const kpiStale = kpiUpdatedAt > 0 && now - kpiUpdatedAt > 150_000; // 2.5x the 60s refetch cadence
 
   return (
     <motion.section
@@ -135,11 +160,18 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {lastUpdatedLabel && (
-        <p style={{ fontSize: 12, color: "hsl(var(--gray-400))", margin: "-8px 0 0" }}>
-          Activité en direct · mise à jour {lastUpdatedLabel}
-        </p>
+      {kpiStale && (
+        <div className="stale-banner">
+          <AlertTriangle size={14} />
+          Les priorités et KPI n'ont pas pu se rafraîchir depuis {kpiUpdatedLabel} — vérifiez votre connexion.
+        </div>
       )}
+
+      <p style={{ fontSize: 12, color: "hsl(var(--gray-400))", margin: kpiStale ? 0 : "-8px 0 0" }}>
+        {kpiUpdatedLabel && `Priorités et KPI actualisés à ${kpiUpdatedLabel}`}
+        {kpiUpdatedLabel && liveFeedLabel && " · "}
+        {liveFeedLabel && `Activité en direct · dernière opération à ${liveFeedLabel}`}
+      </p>
 
       {/* Priority queue: KYC, invoices, alerts */}
       <div className="priority-grid">
