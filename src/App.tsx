@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
-import { AdminLayout } from "@/pages/Admin";
+import { AdminShell } from "@/components/layout/AdminShell";
 import { AdminOpportunities } from "@/pages/AdminOpportunities";
 import { AdminReports } from "@/pages/AdminReports";
 import { AdminDashboard } from "@/pages/AdminDashboard";
@@ -43,7 +43,7 @@ export default function App() {
             <Route path="/join"  element={<JoinScreen />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<Navigate to="/admin" replace />} />
-              <Route path="/admin" element={<AdminLayout />}>
+              <Route path="/admin" element={<AdminShell />}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="users" element={<AdminUsers />} />
                 <Route path="farmers" element={<AdminFarmers />} />

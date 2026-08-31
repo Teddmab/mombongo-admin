@@ -1,23 +1,32 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Activity, ShieldCheck, Wallet, Wheat, Ship, ArrowDownToLine, TrendingUp } from "lucide-react";
+import {
+  ShieldCheck, Handshake, AlertTriangle, Activity, Wallet, KeyRound,
+  UserPlus, FileSearch, Receipt as ReceiptIcon,
+} from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
+import { Link } from "react-router-dom";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/hooks/useAuth";
 import { formatUsd } from "@/lib/utils";
 import { useAdminKpis } from "@/hooks/useAdminKpis";
-import { useMonthlyVolume } from "@/hooks/useMonthlyVolume";
+import {
+  useInvoiceSummary, usePartnerSummary, useOperationalAlertCount,
+  usePaymentActivity, type PaymentActivityPeriod,
+} from "@/hooks/useCommandCenter";
 
 /* ─── Live activity feed ─────────────────────────────────────────────────── */
 
 interface FeedItem {
   id: string;
   type: string;
+  description?: string;
   amountUsd?: number;
   userId?: string;
-  createdAt?: { seconds: number };
+  createdAt?: Timestamp;
 }
 
 const TX_ICON: Record<string, string> = {
@@ -27,33 +36,89 @@ const TX_ICON: Record<string, string> = {
 
 function useActivityFeed() {
   const [feed, setFeed] = useState<FeedItem[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   useEffect(() => {
-    const q = query(collection(db, "transactions"), orderBy("createdAt", "desc"), limit(20));
-    return onSnapshot(q, snap => {
-      setFeed(snap.docs.map(d => ({ id: d.id, ...d.data() } as FeedItem)));
+    const q = query(collection(db, "transactions"), orderBy("createdAt", "desc"), limit(8));
+    return onSnapshot(q, (snap) => {
+      setFeed(snap.docs.map((d) => ({ id: d.id, ...d.data() } as FeedItem)));
+      setLastUpdated(Date.now());
     });
   }, []);
-  return feed;
+  return { feed, lastUpdated };
 }
 
-/* ─── KPI cards config ───────────────────────────────────────────────────── */
+function operationLabel(tx: FeedItem): string {
+  // Human description first (real field on the transaction doc) — the
+  // userId fallback is a technical reference, kept secondary/truncated.
+  if (tx.description) return tx.description;
+  return tx.type ? tx.type.replace(/_/g, " ") : "Opération";
+}
 
-const STAT_CARDS = [
-  { key: "activeUsers" as const,      label: "Utilisateurs actifs", icon: Activity,        format: (v: number) => v.toLocaleString("fr-FR") },
-  { key: "pendingKyc" as const,       label: "KYC en attente",      icon: ShieldCheck,     format: (v: number) => v.toLocaleString("fr-FR") },
-  { key: "monthlyVolumeUsd" as const, label: "Volume mensuel",       icon: Wallet,          format: formatUsd },
-  { key: "financingOpen" as const,    label: "Financements actifs",  icon: Wheat,           format: (v: number) => v.toLocaleString("fr-FR") },
-  { key: "bourseOpen" as const,       label: "Bourse ouverte",       icon: Ship,            format: (v: number) => v.toLocaleString("fr-FR") },
-  { key: "totalDepositsUsd" as const,    label: "Total dépôts",         icon: ArrowDownToLine, format: formatUsd },
-  { key: "platformRevenueUsd" as const,  label: "Revenus plateforme",   icon: TrendingUp,      format: formatUsd },
-] as const;
+/* ─── Priority queue card ─────────────────────────────────────────────── */
 
-/* ─── Component ──────────────────────────────────────────────────────────── */
+function PriorityCard({ to, tone, icon: Icon, count, label, sub, loading, error }: {
+  to: string; tone: "green" | "amber" | "red";
+  icon: React.ComponentType<{ size?: number }>;
+  count: number; label: string; sub: string; loading?: boolean; error?: boolean;
+}) {
+  return (
+    <Link to={to} className={`priority-card tone-${tone}`}>
+      <div className="priority-icon"><Icon size={20} /></div>
+      <div>
+        <p className="priority-count">{error ? "—" : loading ? "…" : count}</p>
+        <p className="priority-label">{label}</p>
+        <p className="priority-sub">{error ? "Données indisponibles" : sub}</p>
+      </div>
+    </Link>
+  );
+}
+
+/* ─── KPI card ────────────────────────────────────────────────────────── */
+
+function KpiCard({ icon: Icon, label, value, sub, loading, error }: {
+  icon: React.ComponentType<{ size?: number }>; label: string; value: string; sub: string;
+  loading?: boolean; error?: boolean;
+}) {
+  return (
+    <article className="metric-card">
+      <div className="metric-top">
+        <span className="badge">{label}</span>
+        <Icon size={18} />
+      </div>
+      <p className="metric-value">{error ? "—" : loading ? "…" : value}</p>
+      <p style={{ fontSize: 11, color: "hsl(var(--gray-400))", marginTop: 4 }}>
+        {error ? "Données indisponibles" : sub}
+      </p>
+    </article>
+  );
+}
+
+/* ─── Component ──────────────────────────────────────────────────────── */
+
+const PERIODS: { value: PaymentActivityPeriod; label: string }[] = [
+  { value: 7, label: "7 jours" },
+  { value: 30, label: "30 jours" },
+  { value: 90, label: "90 jours" },
+];
 
 export function AdminDashboard() {
+  const { user } = useAuth();
   const kpis = useAdminKpis();
-  const { data: monthlyData = [] } = useMonthlyVolume();
-  const feed = useActivityFeed();
+  const { data: invoiceSummary, isLoading: invoicesLoading, error: invoicesError } = useInvoiceSummary();
+  const { data: partnerSummary, isLoading: partnersLoading, error: partnersError } = usePartnerSummary();
+  const { data: alertCount, isLoading: alertsLoading, error: alertsError } = useOperationalAlertCount();
+  const [period, setPeriod] = useState<PaymentActivityPeriod>(30);
+  const { data: activity = [], isLoading: activityLoading } = usePaymentActivity(period);
+  const { feed, lastUpdated } = useActivityFeed();
+
+  const firstName = (user?.displayName ?? user?.email ?? "Admin").split(" ")[0].split("@")[0];
+  const today = useMemo(
+    () => new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }),
+    [],
+  );
+  const lastUpdatedLabel = lastUpdated
+    ? new Date(lastUpdated).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    : null;
 
   return (
     <motion.section
@@ -63,109 +128,184 @@ export function AdminDashboard() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28 }}
     >
-      <div>
-        <div className="section-kicker">Tableau de bord</div>
-        <h1 className="page-title">Supervision des opérations Mombongo</h1>
-        <p className="page-copy">Données en direct depuis Firestore — actualisées toutes les 60 secondes.</p>
+      <div className="greeting-row">
+        <div>
+          <h1 className="greeting-title">Bonjour {firstName}</h1>
+          <p className="greeting-date" style={{ textTransform: "capitalize" }}>{today}</p>
+        </div>
       </div>
 
-      {/* KPI cards */}
+      {lastUpdatedLabel && (
+        <p style={{ fontSize: 12, color: "hsl(var(--gray-400))", margin: "-8px 0 0" }}>
+          Activité en direct · mise à jour {lastUpdatedLabel}
+        </p>
+      )}
+
+      {/* Priority queue: KYC, invoices, alerts */}
+      <div className="priority-grid">
+        <PriorityCard
+          to="/admin/kyc"
+          tone="green"
+          icon={ShieldCheck}
+          count={kpis.pendingKyc}
+          label={`Dossier${kpis.pendingKyc > 1 ? "s" : ""} KYC à vérifier`}
+          sub="Validations en attente de votre décision"
+        />
+        <PriorityCard
+          to="/admin/partner-invoices"
+          tone="amber"
+          icon={Handshake}
+          count={invoiceSummary?.pendingCount ?? 0}
+          loading={invoicesLoading}
+          error={!!invoicesError}
+          label={`Facture${(invoiceSummary?.pendingCount ?? 0) > 1 ? "s" : ""} en attente`}
+          sub={
+            invoiceSummary && invoiceSummary.overdueCount > 0
+              ? `dont ${invoiceSummary.overdueCount} en retard de plus de 7 jours`
+              : "Paiements en attente de traitement"
+          }
+        />
+        <PriorityCard
+          to="/admin/alerts"
+          tone="red"
+          icon={AlertTriangle}
+          count={alertCount?.count ?? 0}
+          loading={alertsLoading}
+          error={!!alertsError}
+          label={`Alerte${(alertCount?.count ?? 0) > 1 ? "s" : ""} à traiter`}
+          sub="Éléments nécessitant votre attention"
+        />
+      </div>
+
+      {/* Four essential KPIs */}
       <div className="stats-grid">
-        {STAT_CARDS.map(({ key, label, icon: Icon, format }) => (
-          <article key={key} className="metric-card">
-            <div className="metric-top">
-              <span className="badge">{label}</span>
-              <Icon size={18} />
-            </div>
-            <p className="metric-value">{format(kpis[key])}</p>
-          </article>
-        ))}
+        <KpiCard icon={Activity} label="Utilisateurs actifs" value={kpis.activeUsers.toLocaleString("fr-FR")} sub="Comptes non désactivés" />
+        <KpiCard icon={Wallet} label="Paiements ce mois" value={formatUsd(kpis.monthlyVolumeUsd)} sub="Depuis le 1er du mois" />
+        <KpiCard
+          icon={ReceiptIcon}
+          label="Factures à payer"
+          value={String(invoiceSummary?.pendingCount ?? 0)}
+          loading={invoicesLoading}
+          error={!!invoicesError}
+          sub="Factures partenaires en attente"
+        />
+        <KpiCard
+          icon={KeyRound}
+          label="Partenaires actifs"
+          value={String(partnerSummary?.activeCount ?? 0)}
+          loading={partnersLoading}
+          error={!!partnersError}
+          sub="Intégrations API actives"
+        />
       </div>
 
       <div className="panel-grid">
-        {/* Monthly volume bar chart */}
+        {/* Payment activity, with period control */}
         <article className="panel">
           <div className="section-header">
             <div>
-              <div className="section-kicker">Volume</div>
-              <h3 style={{ margin: "8px 0 0" }}>Transactions sur 6 mois</h3>
+              <div className="section-kicker">Activité des paiements</div>
+              <h3 style={{ margin: "8px 0 0" }}>Volume de transactions</h3>
+            </div>
+            <div className="period-toggle">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  className={`period-btn${period === p.value ? " active" : ""}`}
+                  onClick={() => setPeriod(p.value)}
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
           </div>
           <div className="chart-shell">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                <CartesianGrid stroke="rgba(16,32,51,0.08)" vertical={false} />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
-                <YAxis
-                  tickLine={false} axisLine={false} tick={{ fontSize: 11 }}
-                  tickFormatter={v => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`}
-                />
-                <Tooltip formatter={(v: number) => [`$${v.toFixed(0)}`, "Volume"]} />
-                <Bar dataKey="volumeUsd" fill="#1E3A5F" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {activityLoading ? (
+              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "hsl(var(--gray-400))", fontSize: 13 }}>
+                Chargement…
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={activity} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid stroke="rgba(16,32,51,0.08)" vertical={false} />
+                  <XAxis
+                    dataKey="day" tickLine={false} axisLine={false}
+                    tick={{ fontSize: 11 }}
+                    interval={period === 90 ? 13 : period === 30 ? 4 : 0}
+                  />
+                  <YAxis
+                    tickLine={false} axisLine={false} tick={{ fontSize: 11 }}
+                    tickFormatter={(v: number) => (v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`)}
+                  />
+                  <Tooltip formatter={(v: number) => [`$${v.toFixed(0)}`, "Volume"]} />
+                  <Bar dataKey="volumeUsd" fill="#1E3A5F" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </article>
 
-        {/* Live activity feed */}
+        {/* Recent operations, human description first */}
         <article className="panel">
           <div className="section-header">
             <div>
               <div className="section-kicker">Activité</div>
-              <h3 style={{ margin: "8px 0 0" }}>Transactions récentes</h3>
+              <h3 style={{ margin: "8px 0 0" }}>Opérations récentes</h3>
             </div>
             <span className="pill status-active">Live</span>
           </div>
-          {feed.length === 0
-            ? <p style={{ color: "var(--color-muted)", fontSize: 13, padding: "16px 0" }}>Aucune transaction récente</p>
-            : (
-              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {feed.map(tx => (
-                  <li key={tx.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--color-border)" }}>
-                    <span style={{ fontSize: 18, flexShrink: 0 }}>{TX_ICON[tx.type] ?? "💰"}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, textTransform: "capitalize" }}>
-                        {tx.type?.replace(/_/g, " ")}
-                      </p>
-                      <p style={{ margin: 0, fontSize: 11, color: "var(--color-muted)" }}>
-                        {tx.userId?.slice(0, 8)}…
-                      </p>
-                    </div>
-                    <span style={{ fontWeight: 700, fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
-                      {tx.amountUsd !== undefined ? formatUsd(tx.amountUsd) : "—"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )
-          }
+          {feed.length === 0 ? (
+            <p style={{ color: "var(--color-muted)", fontSize: 13, padding: "16px 0" }}>Aucune transaction récente</p>
+          ) : (
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {feed.map((tx) => (
+                <li key={tx.id} className="ops-row">
+                  <span className="ops-icon" style={{ background: "hsl(var(--green-50))", fontSize: 16 }}>
+                    {TX_ICON[tx.type] ?? "💰"}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{operationLabel(tx)}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: "var(--color-muted)" }}>
+                      {tx.userId ? `Utilisateur ${tx.userId.slice(0, 8)}…` : "—"}
+                    </p>
+                  </div>
+                  <span style={{ fontWeight: 700, fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+                    {tx.amountUsd !== undefined ? formatUsd(tx.amountUsd) : "—"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </article>
       </div>
 
-      {(kpis.pendingKyc > 0 || kpis.financingOpen > 0) && (
-        <article className="panel">
-          <div className="section-header">
-            <div>
-              <div className="section-kicker">Priorités</div>
-              <h3 style={{ margin: "8px 0 0" }}>Actions recommandées</h3>
-            </div>
+      {/* Quick actions — only destinations that are actually built today.
+          "Créer une facture" (assisted invoice creation) is ADM-UI-04
+          scope and doesn't exist yet, so it's deliberately not listed
+          here rather than linking somewhere that doesn't do anything. */}
+      <article className="panel">
+        <div className="section-header">
+          <div>
+            <div className="section-kicker">Actions rapides</div>
+            <h3 style={{ margin: "8px 0 0" }}>Aller directement à</h3>
           </div>
-          <div className="feature-grid" style={{ gridTemplateColumns: "1fr" }}>
-            {kpis.pendingKyc > 0 && (
-              <div className="feature-card">
-                <strong>Revoir les dossiers KYC</strong>
-                <p className="muted">{kpis.pendingKyc} profil{kpis.pendingKyc > 1 ? "s" : ""} en attente de validation documentaire.</p>
-              </div>
-            )}
-            {kpis.financingOpen > 0 && (
-              <div className="feature-card">
-                <strong>Financements actifs à surveiller</strong>
-                <p className="muted">{kpis.financingOpen} demande{kpis.financingOpen > 1 ? "s" : ""} de financement en cours.</p>
-              </div>
-            )}
-          </div>
-        </article>
-      )}
+        </div>
+        <div className="quick-actions-grid" style={{ padding: 20 }}>
+          <Link to="/admin/partners" className="quick-action-card">
+            <UserPlus size={18} style={{ color: "hsl(var(--green-700))" }} />
+            <span style={{ fontWeight: 600, fontSize: 13 }}>Ajouter un partenaire</span>
+          </Link>
+          <Link to="/admin/kyc" className="quick-action-card">
+            <FileSearch size={18} style={{ color: "hsl(var(--amber-500))" }} />
+            <span style={{ fontWeight: 600, fontSize: 13 }}>Examiner les KYC</span>
+          </Link>
+          <Link to="/admin/partner-invoices" className="quick-action-card">
+            <Handshake size={18} style={{ color: "hsl(var(--gray-700))" }} />
+            <span style={{ fontWeight: 600, fontSize: 13 }}>Voir les factures partenaires</span>
+          </Link>
+        </div>
+      </article>
     </motion.section>
   );
 }
