@@ -92,5 +92,21 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create, update, delete: if false;
     }
+
+    // ── Sprint AI: AROM partner invoice integration ─────────────────────
+    // Admin-only, no end-user access — these hold partner HMAC secrets
+    // (partners) and cross-partner payment data, never meant to be
+    // client-readable by anyone but an admin. Writes normally go through
+    // Cloud Functions (Admin SDK bypasses rules entirely); the explicit
+    // isAdmin() write here only matters for direct-console edits.
+    match /partners/{partnerId} {
+      allow read, write: if isAdmin();
+    }
+    match /external_invoices/{invoiceId} {
+      allow read, write: if isAdmin();
+    }
+    match /outbound_notification_failures/{failureId} {
+      allow read, write: if isAdmin();
+    }
   }
 }
