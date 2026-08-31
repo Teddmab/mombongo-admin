@@ -1,7 +1,7 @@
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = "investor" | "farmer" | "merchant" | "agent" | "admin";
-export type PaymentMethod = "mpesa" | "airtel" | "orange" | "equity" | "stripe";
+export type PaymentMethod = "mpesa" | "airtel" | "orange" | "equity";
 export type PaymentStatus = "pending" | "confirmed" | "failed" | "refunded";
 export type ProductStatus =
   | "draft"
