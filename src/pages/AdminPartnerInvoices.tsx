@@ -11,7 +11,8 @@ import { formatUsd } from "@/lib/utils";
 
 interface InvoiceRow {
   id: string;
-  partnerId: string;
+  origin?: "partner_api" | "harvest_sale";
+  partnerId: string | null;
   externalInvoiceId: string;
   amountUsd: number;
   currency?: string;
@@ -25,19 +26,29 @@ interface InvoiceRow {
   paidAt?: { seconds: number };
   failedAt?: { seconds: number };
   notifiedAt?: { seconds: number };
+  invoiceIssuedNotifiedAt?: { seconds: number };
+  // harvest_sale only (SDP-02/04)
+  farmerId?: string;
+  listingId?: string;
+  offerId?: string;
+  merchantId?: string;
 }
 
 interface FailedNotificationRow {
   id: string;
   invoiceId: string;
   partnerId: string;
+  kind?: "payment_complete" | "invoice_issued";
   error: string;
   failedAt?: { seconds: number };
 }
 
 const STATUS_OPTIONS = ["pending", "checkout_created", "paid", "failed"] as const;
 
-const adminRetryPartnerNotificationFn = httpsCallable(functions, "adminRetryPartnerNotification");
+const adminRetryPartnerNotificationFn = httpsCallable<
+  { invoiceId: string; kind?: "payment_complete" | "invoice_issued" },
+  { success: true }
+>(functions, "adminRetryPartnerNotification");
 
 /* ─── Helpers ───────────────────────────────────────────────────────────── */
 
@@ -50,6 +61,14 @@ function statusPillClass(status: string) {
   if (status === "paid") return "status-active";
   if (status === "failed") return "status-blocked";
   return "status-pending";
+}
+
+function originLabel(origin?: string) {
+  return origin === "harvest_sale" ? "Vente récolte" : "Partenaire API";
+}
+
+function originPillClass(origin?: string) {
+  return origin === "harvest_sale" ? "status-active" : "";
 }
 
 /* ─── List ──────────────────────────────────────────────────────────────── */
@@ -83,7 +102,7 @@ export function AdminPartnerInvoices() {
       <div className="page-header">
         <div>
           <div className="section-kicker">Partenaires</div>
-          <h1 className="page-title">Factures partenaires</h1>
+          <h1 className="page-title">Factures</h1>
           <p className="page-copy">{all.length} facture{all.length !== 1 ? "s" : ""} · {rows.length} affichées</p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -120,6 +139,7 @@ export function AdminPartnerInvoices() {
             <table className="admin-table">
               <thead>
                 <tr>
+                  <th>Origine</th>
                   <th>Partenaire</th>
                   <th>Facture (ID partenaire)</th>
                   <th>Montant</th>
@@ -132,7 +152,10 @@ export function AdminPartnerInvoices() {
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.partnerId}{row.testMode && <span className="pill" style={{ marginLeft: 6 }}>test</span>}</td>
+                    <td>
+                      <span className={`pill ${originPillClass(row.origin)}`}>{originLabel(row.origin)}</span>
+                    </td>
+                    <td>{row.partnerId || "—"}{row.testMode && <span className="pill" style={{ marginLeft: 6 }}>test</span>}</td>
                     <td style={{ fontFamily: "monospace", fontSize: 11, color: "var(--color-muted)" }}>
                       {row.externalInvoiceId}
                     </td>
@@ -154,7 +177,7 @@ export function AdminPartnerInvoices() {
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", color: "var(--color-muted)", padding: "32px" }}>
+                    <td colSpan={8} style={{ textAlign: "center", color: "var(--color-muted)", padding: "32px" }}>
                       Aucune facture trouvée
                     </td>
                   </tr>
@@ -191,7 +214,10 @@ function FailedNotificationsSection({ onRetried }: { onRetried: () => void }) {
     setRetryingId(row.id);
     setError(null);
     try {
-      await adminRetryPartnerNotificationFn({ invoiceId: row.invoiceId });
+      // kind is undefined for a pre-SDP-04 failure doc — the Cloud
+      // Function defaults that to 'payment_complete', matching what it
+      // always meant before this field existed.
+      await adminRetryPartnerNotificationFn({ invoiceId: row.invoiceId, kind: row.kind });
       await qc.invalidateQueries({ queryKey: ["admin-partner-notification-failures"] });
       onRetried();
     } catch (e: unknown) {
@@ -222,6 +248,7 @@ function FailedNotificationsSection({ onRetried }: { onRetried: () => void }) {
             <tr>
               <th>Facture</th>
               <th>Partenaire</th>
+              <th>Type</th>
               <th>Erreur</th>
               <th>Échec le</th>
               <th></th>
@@ -232,6 +259,9 @@ function FailedNotificationsSection({ onRetried }: { onRetried: () => void }) {
               <tr key={row.id}>
                 <td style={{ fontFamily: "monospace", fontSize: 11 }}>{row.invoiceId}</td>
                 <td>{row.partnerId}</td>
+                <td>
+                  <span className="pill">{row.kind === "invoice_issued" ? "Facture émise" : "Paiement complété"}</span>
+                </td>
                 <td style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {row.error}
                 </td>
@@ -288,9 +318,11 @@ export function AdminPartnerInvoiceDetail() {
     );
   }
 
+  const isHarvestSale = invoice.origin === "harvest_sale";
+
   // Full lifecycle, in order: intake → checkout → payment/failure → notification.
   const fields: [string, string][] = [
-    ["Partenaire", invoice.partnerId],
+    ["Partenaire", invoice.partnerId || "—"],
     ["ID facture partenaire", invoice.externalInvoiceId],
     ["Référence", invoice.reference || "—"],
     ["Montant", formatUsd(invoice.amountUsd)],
@@ -306,16 +338,25 @@ export function AdminPartnerInvoiceDetail() {
     ["Partenaire notifié le", fmtDate(invoice.notifiedAt)],
   ];
 
+  const harvestSaleFields: [string, string][] = [
+    ["Agriculteur", invoice.farmerId || "—"],
+    ["Marchand", invoice.merchantId || "—"],
+    ["Facture émise, notifiée le", fmtDate(invoice.invoiceIssuedNotifiedAt)],
+  ];
+
   return (
     <section className="page">
       <button onClick={() => navigate(-1)} className="text-sm text-blue-600 mb-4">← Retour</button>
 
       <div className="page-header">
         <div>
-          <div className="section-kicker">Facture partenaire</div>
+          <div className="section-kicker">Facture</div>
           <h1 className="page-title" style={{ fontFamily: "monospace", fontSize: 18 }}>{invoice.id}</h1>
         </div>
-        <span className={`pill ${statusPillClass(invoice.status)}`}>{invoice.status}</span>
+        <div className="flex gap-2">
+          <span className={`pill ${originPillClass(invoice.origin)}`}>{originLabel(invoice.origin)}</span>
+          <span className={`pill ${statusPillClass(invoice.status)}`}>{invoice.status}</span>
+        </div>
       </div>
 
       <article className="panel" style={{ maxWidth: 560 }}>
@@ -328,6 +369,35 @@ export function AdminPartnerInvoiceDetail() {
           ))}
         </dl>
       </article>
+
+      {isHarvestSale && (
+        <article className="panel" style={{ maxWidth: 560, marginTop: 16 }}>
+          <div className="section-header">
+            <div>
+              <div className="section-kicker">Vente récolte</div>
+              <p className="card-title">Contexte agriculteur / offre / marchand</p>
+            </div>
+          </div>
+          <dl style={{ padding: 20 }}>
+            {harvestSaleFields.map(([k, v]) => (
+              <div key={k} className="flex justify-between border-b border-gray-50 py-2.5 last:border-0">
+                <dt className="text-sm text-gray-500">{k}</dt>
+                <dd className="text-sm font-semibold text-gray-900" style={{ fontFamily: "monospace", fontSize: 12 }}>{v}</dd>
+              </div>
+            ))}
+            {invoice.listingId && invoice.offerId && (
+              <div className="flex justify-between py-2.5">
+                <dt className="text-sm text-gray-500">Voir l'historique des offres</dt>
+                <dd>
+                  <button onClick={() => navigate(`/admin/harvest-offers?listingId=${invoice.listingId}`)} className="text-xs text-blue-600 hover:underline">
+                    Ouvrir
+                  </button>
+                </dd>
+              </div>
+            )}
+          </dl>
+        </article>
+      )}
     </section>
   );
 }
