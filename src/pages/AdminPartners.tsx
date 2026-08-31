@@ -40,6 +40,29 @@ const adminProvisionPartnerFn = httpsCallable<Record<string, unknown>, Provision
   "adminProvisionPartner",
 );
 
+const adminUpdatePartnerWebhookUrlFn = httpsCallable<
+  { partnerId: string; webhookUrl: string },
+  { success: true }
+>(functions, "adminUpdatePartnerWebhookUrl");
+
+// Mirrors the server-side check in mombongo-functions/src/lib/validateWebhookUrl.ts
+// for immediate feedback — the Cloud Function call is still the authoritative
+// check, this just avoids a round-trip for the common typo cases.
+function quickValidateWebhookUrl(raw: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return "URL invalide";
+  }
+  if (url.protocol !== "https:") return "L'URL doit utiliser https://";
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (hostname === "localhost" || hostname === "0.0.0.0" || hostname.endsWith(".local") || hostname.endsWith(".internal")) {
+    return "Hôte interne ou local non autorisé";
+  }
+  return null;
+}
+
 function fmtDate(ts?: { seconds: number }) {
   if (!ts) return "—";
   return new Date(ts.seconds * 1000).toLocaleDateString("fr-FR", { dateStyle: "medium" });
@@ -406,7 +429,6 @@ export function AdminPartnerDetail() {
     ["Nom", partner.name],
     ["Mode", partner.testMode ? "Test" : "Live"],
     ["Statut", partner.active ? "Actif" : "Inactif"],
-    ["Webhook", partner.webhookUrl || "non configuré"],
     ["Compte marchand (uid)", partner.merchantUid || "—"],
     ["Créé le", fmtDate(partner.createdAt)],
   ];
@@ -427,6 +449,7 @@ export function AdminPartnerDetail() {
 
       <article className="panel" style={{ maxWidth: 560 }}>
         <dl>
+          <WebhookUrlRow partnerId={partner.id} currentUrl={partner.webhookUrl ?? null} />
           {fields.map(([k, v]) => (
             <div key={k} className="flex justify-between border-b border-gray-50 py-2.5 last:border-0">
               <dt className="text-sm text-gray-500">{k}</dt>
@@ -467,5 +490,86 @@ export function AdminPartnerDetail() {
         </div>
       </article>
     </section>
+  );
+}
+
+/* ─── Webhook URL row ───────────────────────────────────────────────────── */
+
+function WebhookUrlRow({ partnerId, currentUrl }: { partnerId: string; currentUrl: string | null }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(currentUrl ?? "");
+  const [status, setStatus] = useState<"idle" | "loading" | "err">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  function startEditing() {
+    setValue(currentUrl ?? "");
+    setError(null);
+    setStatus("idle");
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    const trimmed = value.trim();
+    const clientError = quickValidateWebhookUrl(trimmed);
+    if (clientError) {
+      setStatus("err");
+      setError(clientError);
+      return;
+    }
+    setStatus("loading");
+    setError(null);
+    try {
+      await adminUpdatePartnerWebhookUrlFn({ partnerId, webhookUrl: trimmed });
+      await qc.invalidateQueries({ queryKey: ["admin-partner", partnerId] });
+      setStatus("idle");
+      setEditing(false);
+    } catch (e: unknown) {
+      setStatus("err");
+      setError(e instanceof Error ? e.message : "Erreur inconnue");
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex justify-between border-b border-gray-50 py-2.5 last:border-0">
+        <dt className="text-sm text-gray-500">Webhook</dt>
+        <dd className="text-sm font-semibold text-gray-900" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ color: currentUrl ? undefined : "var(--color-muted)" }}>{currentUrl || "non configuré"}</span>
+          <button onClick={startEditing} className="text-xs text-blue-600 hover:underline" style={{ fontWeight: 500 }}>
+            {currentUrl ? "Modifier" : "Configurer"}
+          </button>
+        </dd>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-b border-gray-50 py-2.5 last:border-0">
+      <dt className="text-sm text-gray-500" style={{ marginBottom: 6 }}>Webhook</dt>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="https://…"
+          className="h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white"
+          style={{ flex: 1, fontFamily: "monospace" }}
+          autoFocus
+        />
+        <button className="btn-primary" style={{ height: 36, whiteSpace: "nowrap" }} disabled={status === "loading"} onClick={handleSave}>
+          {status === "loading" ? "…" : "Enregistrer"}
+        </button>
+        <button
+          onClick={() => setEditing(false)}
+          disabled={status === "loading"}
+          style={{ height: 36, padding: "0 12px", background: "none", border: "1px solid hsl(var(--gray-200))", borderRadius: 8, fontSize: 13, cursor: "pointer" }}
+        >
+          Annuler
+        </button>
+      </div>
+      {status === "err" && error && (
+        <p style={{ fontSize: 12, color: "hsl(var(--danger))", marginTop: 6 }}>{error}</p>
+      )}
+    </div>
   );
 }
