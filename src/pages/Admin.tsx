@@ -39,6 +39,7 @@ import {
   Wheat,
   Leaf,
   Handshake,
+  KeyRound,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -85,6 +86,7 @@ const NAV = [
   { to: "/admin/agro-exchange", icon: Wheat,         label: "Agro Exchange" },
   { to: "/admin/agronomie",    icon: Leaf,           label: "Agronomie" },
   { to: "/admin/kyc", icon: ShieldCheck, label: "KYC & Conformité" },
+  { to: "/admin/partners", icon: KeyRound, label: "Partenaires API" },
   { to: "/admin/partner-invoices", icon: Handshake, label: "Factures partenaires" },
   { to: "/admin/reports", icon: FileBarChart, label: "Rapports" },
   { to: "/admin/alerts", icon: Bell, label: "Alertes" },
