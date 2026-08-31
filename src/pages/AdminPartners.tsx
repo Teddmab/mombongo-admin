@@ -1,9 +1,15 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, where } from "firebase/firestore";
 import { Copy, Handshake } from "lucide-react";
 import { db, functions } from "@/lib/firebase";
+
+interface MerchantOption {
+  uid: string;
+  fullName: string;
+  email: string;
+}
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
@@ -136,6 +142,20 @@ function ProvisionPartnerForm({ onProvisioned }: { onProvisioned: () => void }) 
   const [result, setResult] = useState<ProvisionResult | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  const { data: merchants = [], isLoading: merchantsLoading } = useQuery({
+    queryKey: ["admin-merchant-users"],
+    queryFn: async () => {
+      // No orderBy here deliberately — where("role","==",...) + orderBy on
+      // a different field needs a composite Firestore index that may not
+      // exist yet; sort client-side instead of depending on one.
+      const snap = await getDocs(query(collection(db, "users"), where("role", "==", "merchant")));
+      return snap.docs
+        .map((d) => ({ uid: d.id, fullName: d.data().fullName ?? "", email: d.data().email ?? "" }) as MerchantOption)
+        .sort((a, b) => (a.fullName || a.email).localeCompare(b.fullName || b.email));
+    },
+    enabled: merchantMode === "existing",
+  });
+
   const canSubmit =
     partnerId.trim() && partnerName.trim() &&
     (merchantMode === "new" ? merchantEmail.trim() && merchantDisplayName.trim() : existingMerchantUid.trim());
@@ -241,8 +261,22 @@ function ProvisionPartnerForm({ onProvisioned }: { onProvisioned: () => void }) 
               </Field>
             </div>
           ) : (
-            <Field label="UID du compte marchand existant (voir Utilisateurs)">
-              <input value={existingMerchantUid} onChange={(e) => setExistingMerchantUid(e.target.value)} className="h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white w-full" placeholder="uid Firebase" />
+            <Field label="Compte marchand">
+              <select
+                value={existingMerchantUid}
+                onChange={(e) => setExistingMerchantUid(e.target.value)}
+                disabled={merchantsLoading}
+                className="h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white w-full"
+              >
+                <option value="">
+                  {merchantsLoading ? "Chargement…" : merchants.length === 0 ? "Aucun compte marchand trouvé" : "Sélectionner un marchand"}
+                </option>
+                {merchants.map((m) => (
+                  <option key={m.uid} value={m.uid}>
+                    {m.fullName || "(sans nom)"} — {m.email || m.uid}
+                  </option>
+                ))}
+              </select>
             </Field>
           )}
         </div>
