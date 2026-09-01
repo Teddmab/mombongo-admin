@@ -38,6 +38,12 @@ function renderWizard() {
   return render(<MemoryRouter><AdminCreateAssistedInvoice /></MemoryRouter>);
 }
 
+/** The combobox only renders its option list once opened (focused) — mirrors real user interaction, not the old always-visible list. Selection fires on mousedown (not click), matching the component's real event handler. */
+function selectFromCombobox(optionText: string) {
+  fireEvent.focus(screen.getByRole("combobox"));
+  fireEvent.mouseDown(screen.getByText(optionText));
+}
+
 describe("AdminCreateAssistedInvoice wizard", () => {
   const mutateAsync = vi.fn();
 
@@ -56,16 +62,38 @@ describe("AdminCreateAssistedInvoice wizard", () => {
     expect(screen.getByText("Continuer")).toBeDisabled();
   });
 
+  it("is a real combobox — no options are visible until the input is opened", () => {
+    renderWizard();
+    expect(screen.queryByText("Jean Kalonji")).not.toBeInTheDocument();
+    fireEvent.focus(screen.getByRole("combobox"));
+    expect(screen.getByText("Jean Kalonji")).toBeInTheDocument();
+  });
+
+  it("filters options as you type and collapses back to the selected label after choosing one", () => {
+    renderWizard();
+    const input = screen.getByRole("combobox") as HTMLInputElement;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "zzz-no-match" } });
+    expect(screen.queryByText("Jean Kalonji")).not.toBeInTheDocument();
+    expect(screen.getByText(/aucun compte vérifié/i)).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "jean" } });
+    fireEvent.mouseDown(screen.getByText("Jean Kalonji"));
+
+    expect(input.value).toBe("Jean Kalonji");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
   it("walks through all 5 steps and submits with consent required", async () => {
     renderWizard();
 
-    fireEvent.click(screen.getByText("Jean Kalonji"));
+    selectFromCombobox("Jean Kalonji");
     fireEvent.click(screen.getByText("Continuer"));
 
-    fireEvent.click(screen.getByText("AROM Industries"));
+    selectFromCombobox("AROM Industries");
     fireEvent.click(screen.getByText("Continuer"));
 
-    fireEvent.click(screen.getByText(/Ananas — 500 kg disponibles/));
+    selectFromCombobox("Ananas — 500 kg disponibles");
     fireEvent.change(screen.getByLabelText(/quantité/i), { target: { value: "100" } });
     fireEvent.click(screen.getByText("Continuer"));
 
@@ -87,11 +115,11 @@ describe("AdminCreateAssistedInvoice wizard", () => {
 
   it("blocks advancing past the listing step when quantity exceeds what's available", () => {
     renderWizard();
-    fireEvent.click(screen.getByText("Jean Kalonji"));
+    selectFromCombobox("Jean Kalonji");
     fireEvent.click(screen.getByText("Continuer"));
-    fireEvent.click(screen.getByText("AROM Industries"));
+    selectFromCombobox("AROM Industries");
     fireEvent.click(screen.getByText("Continuer"));
-    fireEvent.click(screen.getByText(/Ananas — 500 kg disponibles/));
+    selectFromCombobox("Ananas — 500 kg disponibles");
     fireEvent.change(screen.getByLabelText(/quantité/i), { target: { value: "10000" } });
     expect(screen.getByText("Continuer")).toBeDisabled();
   });
@@ -99,11 +127,11 @@ describe("AdminCreateAssistedInvoice wizard", () => {
   it("shows a server error message from the CF without pretending it succeeded", async () => {
     mockedCreate.mockReturnValue({ mutateAsync, isPending: false, isError: true, error: new Error("L'agriculteur doit avoir un KYC approuvé") } as never);
     renderWizard();
-    fireEvent.click(screen.getByText("Jean Kalonji"));
+    selectFromCombobox("Jean Kalonji");
     fireEvent.click(screen.getByText("Continuer"));
-    fireEvent.click(screen.getByText("AROM Industries"));
+    selectFromCombobox("AROM Industries");
     fireEvent.click(screen.getByText("Continuer"));
-    fireEvent.click(screen.getByText(/Ananas — 500 kg disponibles/));
+    selectFromCombobox("Ananas — 500 kg disponibles");
     fireEvent.change(screen.getByLabelText(/quantité/i), { target: { value: "100" } });
     fireEvent.click(screen.getByText("Continuer"));
     fireEvent.click(screen.getByText("Continuer"));
