@@ -1,228 +1,265 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { collection, getDocs, query, where, orderBy, limit, updateDoc, doc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { ShieldCheck } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ShieldCheck, ShieldX, ShieldAlert, Loader2 } from "lucide-react";
+import {
+  useKycSubmissions, useKycSubmissionDetail, useKycDocumentUrls, useReviewKyc,
+  queueTabFilter, isThisMonth, type KycQueueTab, type KycStatus,
+} from "@/hooks/useKyc";
 
-const fmtDate = (ts?: { seconds: number }) =>
-  ts ? new Date(ts.seconds * 1000).toLocaleDateString("fr-FR") : "—";
+const TABS: { key: KycQueueTab; label: string }[] = [
+  { key: "pending", label: "À vérifier" },
+  { key: "correction_requested", label: "En attente d'informations" },
+  { key: "done", label: "Terminés" },
+];
 
-const STATUS_FILTER_OPTIONS = ["pending", "verified", "rejected", "none"] as const;
-type StatusFilter = typeof STATUS_FILTER_OPTIONS[number] | "";
+const STATUS_LABEL: Record<KycStatus, string> = {
+  pending: "En attente",
+  verified: "Validé",
+  rejected: "Rejeté",
+  correction_requested: "Correction demandée",
+};
+const STATUS_PILL: Record<KycStatus, string> = {
+  pending: "status-pending",
+  verified: "status-active",
+  rejected: "status-blocked",
+  correction_requested: "status-pending",
+};
 
-interface KycUser {
-  id: string;
-  fullName: string;
-  email: string;
-  phone?: string;
-  role: string;
-  kycStatus: string;
-  kycDocumentUrl?: string;
-  kycSubmittedAt?: { seconds: number };
-  createdAt?: { seconds: number };
-}
-
-function useToast() {
-  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
-  const show = (text: string, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg(null), 3000); };
-  return { msg, success: (t: string) => show(t, true), error: (t: string) => show(t, false) };
+function fmtDateTime(ts?: { seconds: number } | null) {
+  return ts ? new Date(ts.seconds * 1000).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—";
 }
 
 export function AdminKyc() {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [filter, setFilter] = useState<StatusFilter>("pending");
-  const [saving, setSaving] = useState(false);
+  const { data: allRows = [], isLoading, error } = useKycSubmissions();
+  const [tab, setTab] = useState<KycQueueTab>("pending");
+  const [search, setSearch] = useState("");
+  const [selectedUid, setSelectedUid] = useState<string | null>(null);
 
-  const { data: users = [], isLoading } = useQuery({
-    queryKey: ["admin-kyc-users", filter],
-    queryFn: async () => {
-      const constraints = [orderBy("createdAt", "desc"), limit(100)] as Parameters<typeof query>[1][];
-      if (filter) constraints.unshift(where("kycStatus", "==", filter));
-      const snap = await getDocs(query(collection(db, "users"), ...constraints));
-      return snap.docs.map(d => ({ id: d.id, ...d.data() } as KycUser));
-    },
-  });
+  const stats = useMemo(() => ({
+    pending: allRows.filter((r) => r.status === "pending").length,
+    correctionRequested: allRows.filter((r) => r.status === "correction_requested").length,
+    verifiedThisMonth: allRows.filter((r) => r.status === "verified" && isThisMonth(r.reviewedAt)).length,
+    rejectedThisMonth: allRows.filter((r) => r.status === "rejected" && isThisMonth(r.reviewedAt)).length,
+  }), [allRows]);
 
-  async function updateKyc(userId: string, kycStatus: string) {
-    setSaving(true);
-    try {
-      let extra: Record<string, unknown> = { kycStatus };
-      if (kycStatus === "verified") extra = { ...extra, kycVerifiedAt: new Date() };
-      await updateDoc(doc(db, "users", userId), extra);
-      toast.success(`KYC mis à jour → ${kycStatus}`);
-      qc.invalidateQueries({ queryKey: ["admin-kyc-users"] });
-    } catch {
-      toast.error("Erreur lors de la mise à jour");
-    } finally { setSaving(false); }
-  }
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allRows
+      .filter((r) => queueTabFilter(r, tab))
+      .filter((r) => !q || r.fullName.toLowerCase().includes(q) || r.role.toLowerCase().includes(q));
+  }, [allRows, tab, search]);
 
-  async function rejectKyc(userId: string) {
-    const reason = window.prompt("Raison du rejet :");
-    if (!reason) return;
-    setSaving(true);
-    try {
-      await updateDoc(doc(db, "users", userId), {
-        kycStatus: "rejected",
-        kycRejectionReason: reason,
-        kycRejectedAt: new Date(),
-      });
-      toast.success("KYC rejeté");
-      qc.invalidateQueries({ queryKey: ["admin-kyc-users"] });
-    } catch {
-      toast.error("Erreur lors du rejet");
-    } finally { setSaving(false); }
-  }
-
-  const pending = users.filter(u => u.kycStatus === "pending");
-  const verified = users.filter(u => u.kycStatus === "verified");
-  const rejected = users.filter(u => u.kycStatus === "rejected");
+  const selected = selectedUid ?? rows[0]?.uid;
 
   return (
     <section className="page">
-      {toast.msg && (
-        <div className={`fixed top-4 right-4 z-[60] px-4 py-2 rounded-lg text-sm font-semibold shadow-lg ${toast.msg.ok ? "bg-green-600 text-white" : "bg-red-500 text-white"}`}>
-          {toast.msg.text}
-        </div>
-      )}
-
       <div className="page-header">
         <div>
           <div className="section-kicker">Conformité</div>
           <h1 className="page-title">Vérification KYC</h1>
-          <p className="page-copy">Validez les documents d'identité des utilisateurs pour activer leurs comptes.</p>
-        </div>
-        <select
-          value={filter}
-          onChange={e => setFilter(e.target.value as StatusFilter)}
-          className="h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white"
-        >
-          <option value="">Tous</option>
-          {STATUS_FILTER_OPTIONS.map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Summary chips */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="metric-card" style={{ minWidth: 120 }}>
-          <p className="section-kicker">En attente</p>
-          <p className="metric-value">{pending.length}</p>
-        </div>
-        <div className="metric-card" style={{ minWidth: 120 }}>
-          <p className="section-kicker">Vérifiés</p>
-          <p className="metric-value">{verified.length}</p>
-        </div>
-        <div className="metric-card" style={{ minWidth: 120 }}>
-          <p className="section-kicker">Rejetés</p>
-          <p className="metric-value">{rejected.length}</p>
+          <p className="page-copy">Examinez les dossiers qui nécessitent une décision.</p>
         </div>
       </div>
 
-      <article className="panel">
-        {isLoading ? (
-          <div className="space-y-2 p-4">
-            {[1, 2, 3].map(n => <div key={n} className="h-10 bg-gray-100 rounded animate-pulse" />)}
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Nom</th>
-                  <th>Email</th>
-                  <th>Rôle</th>
-                  <th>Statut KYC</th>
-                  <th>Soumis le</th>
-                  <th>Inscrit le</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.id}>
-                    <td className="font-semibold">{u.fullName || "—"}</td>
-                    <td style={{ fontSize: 12, color: "var(--color-muted)" }}>{u.email}</td>
-                    <td>
-                      <span className="badge">{u.role}</span>
-                    </td>
-                    <td>
-                      <span className={`pill ${
-                        u.kycStatus === "verified" ? "status-active"
-                        : u.kycStatus === "pending" ? "status-pending"
-                        : u.kycStatus === "rejected" ? "status-blocked"
-                        : ""
-                      }`}>
-                        {u.kycStatus}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(u.kycSubmittedAt)}</td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(u.createdAt)}</td>
-                    <td>
-                      <div className="flex gap-1.5">
-                        {u.kycDocumentUrl && (
-                          <a
-                            href={u.kycDocumentUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                          >
-                            <ShieldCheck size={12} /> Docs
-                          </a>
-                        )}
-                        {u.kycStatus === "pending" && (
-                          <>
-                            <button
-                              onClick={() => updateKyc(u.id, "verified")}
-                              disabled={saving}
-                              className="h-7 px-3 bg-green-50 text-green-700 border border-green-200 rounded text-xs font-semibold disabled:opacity-50"
-                            >
-                              Valider
-                            </button>
-                            <button
-                              onClick={() => rejectKyc(u.id)}
-                              disabled={saving}
-                              className="h-7 px-3 bg-red-50 text-red-600 border border-red-200 rounded text-xs font-semibold disabled:opacity-50"
-                            >
-                              Rejeter
-                            </button>
-                          </>
-                        )}
-                        {u.kycStatus === "verified" && (
-                          <button
-                            onClick={() => updateKyc(u.id, "none")}
-                            disabled={saving}
-                            className="h-7 px-3 bg-gray-100 text-gray-600 border border-gray-200 rounded text-xs disabled:opacity-50"
-                          >
-                            Annuler
-                          </button>
-                        )}
-                        {u.kycStatus === "rejected" && (
-                          <button
-                            onClick={() => updateKyc(u.id, "pending")}
-                            disabled={saving}
-                            className="h-7 px-3 bg-amber-50 text-amber-700 border border-amber-200 rounded text-xs font-semibold disabled:opacity-50"
-                          >
-                            Remettre
-                          </button>
-                        )}
+      <div className="stats-grid">
+        <div className="metric-card">
+          <p className="section-kicker">À vérifier</p>
+          <p className="metric-value">{stats.pending}</p>
+        </div>
+        <div className="metric-card">
+          <p className="section-kicker">Informations manquantes</p>
+          <p className="metric-value">{stats.correctionRequested}</p>
+        </div>
+        <div className="metric-card">
+          <p className="section-kicker">Validés ce mois</p>
+          <p className="metric-value">{stats.verifiedThisMonth}</p>
+        </div>
+        <div className="metric-card">
+          <p className="section-kicker">Rejetés ce mois</p>
+          <p className="metric-value">{stats.rejectedThisMonth}</p>
+        </div>
+      </div>
+
+      {error ? (
+        <p role="alert" className="error-text" style={{ padding: 24 }}>
+          Impossible de charger la file KYC. Réessayez plus tard.
+        </p>
+      ) : (
+        <div className="panel-grid" style={{ gridTemplateColumns: "380px 1fr" }}>
+          <article className="panel">
+            <div className="flex gap-1.5 flex-wrap" role="tablist">
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  role="tab"
+                  aria-selected={tab === t.key}
+                  onClick={() => setTab(t.key)}
+                  className="button"
+                  style={tab === t.key ? { background: "var(--color-accent, #0f5132)", color: "#fff" } : undefined}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher une personne ou un rôle…"
+              className="form-input"
+              style={{ marginTop: 12 }}
+              aria-label="Rechercher dans la file KYC"
+            />
+
+            {isLoading ? (
+              <div className="space-y-2" style={{ marginTop: 12 }}>
+                {[1, 2, 3].map((n) => <div key={n} className="h-14 bg-gray-100 rounded animate-pulse" />)}
+              </div>
+            ) : rows.length === 0 ? (
+              <p className="text-center text-gray-400 py-10 text-sm">Aucun dossier dans cette file.</p>
+            ) : (
+              <ul className="space-y-1" style={{ marginTop: 12 }}>
+                {rows.map((r) => (
+                  <li key={r.uid}>
+                    <button
+                      onClick={() => setSelectedUid(r.uid)}
+                      className="list-row w-full text-left"
+                      style={{ background: selected === r.uid ? "var(--color-row-active, #f0f7f2)" : undefined }}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-semibold text-sm">{r.fullName}</div>
+                          <div style={{ fontSize: 12, color: "var(--color-muted)" }}>{r.role} · {fmtDateTime(r.submittedAt)}</div>
+                        </div>
+                        <span className={`pill ${STATUS_PILL[r.status]}`}>{STATUS_LABEL[r.status]}</span>
                       </div>
-                    </td>
-                  </tr>
+                    </button>
+                  </li>
                 ))}
-                {users.length === 0 && (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: "center", color: "var(--color-muted)", padding: "32px" }}>
-                      Aucun utilisateur {filter ? `avec le statut « ${filter} »` : ""}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </article>
+              </ul>
+            )}
+          </article>
+
+          <KycDetailPane uid={selected} />
+        </div>
+      )}
     </section>
+  );
+}
+
+function KycDetailPane({ uid }: { uid: string | undefined }) {
+  const { data: detail, isLoading } = useKycSubmissionDetail(uid);
+  const { data: docs, isLoading: docsLoading, error: docsError } = useKycDocumentUrls(uid);
+  const review = useReviewKyc();
+  const [reasonPrompt, setReasonPrompt] = useState<"rejected" | "correction_requested" | null>(null);
+  const [reason, setReason] = useState("");
+
+  if (!uid) {
+    return <article className="panel"><p className="text-center text-gray-400 py-20">Sélectionnez un dossier</p></article>;
+  }
+  if (isLoading || !detail) {
+    return <article className="panel"><div className="h-64 bg-gray-100 rounded-2xl animate-pulse" /></article>;
+  }
+
+  const busy = review.isPending;
+  const decided = detail.status === "verified" || detail.status === "rejected";
+
+  async function submitDecision(decision: KycStatus, decisionReason?: string) {
+    await review.mutateAsync({ uid: uid!, decision, reason: decisionReason });
+    setReasonPrompt(null);
+    setReason("");
+  }
+
+  return (
+    <article className="panel">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 style={{ margin: 0 }}>Dossier de {detail.fullName}</h3>
+          <p className="muted" style={{ marginTop: 4 }}>{detail.role} · {detail.province ?? "—"} · Soumis le {fmtDateTime(detail.submittedAt)}</p>
+        </div>
+        <span className={`pill ${STATUS_PILL[detail.status]}`}>{STATUS_LABEL[detail.status]}</span>
+      </div>
+
+      <div className="section-header" style={{ marginTop: 16 }}><h3>Pièce d'identité — {detail.documentType}</h3></div>
+      {docsError ? (
+        <p role="alert" className="error-text">Impossible de charger les documents.</p>
+      ) : docsLoading ? (
+        <div className="h-40 bg-gray-100 rounded-xl animate-pulse" />
+      ) : (
+        <div className="flex gap-3 flex-wrap">
+          {(docs?.urls ?? []).map((url, i) => (
+            <img key={i} src={url} alt={`Document ${i + 1}`} style={{ width: 160, height: 160, objectFit: "cover", borderRadius: 12, border: "1px solid var(--color-border, #eee)" }} />
+          ))}
+          {docs?.urls.length === 0 && <p className="muted">Aucun document.</p>}
+        </div>
+      )}
+      <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+        Aperçu généré via une URL signée temporaire — jamais un lien public.
+      </p>
+
+      <div className="section-header" style={{ marginTop: 16 }}><h3>Historique</h3></div>
+      <ul className="space-y-0">
+        <li className="flex justify-between text-sm py-2 border-b border-gray-50">
+          <span className="text-gray-600">Dossier soumis</span>
+          <span>{fmtDateTime(detail.submittedAt)}</span>
+        </li>
+        {detail.reviewedAt && (
+          <li className="flex justify-between text-sm py-2 border-b border-gray-50 last:border-0">
+            <span className="text-gray-600">Décision — {STATUS_LABEL[detail.status]}{detail.rejectionReason ? ` (${detail.rejectionReason})` : ""}</span>
+            <span>{fmtDateTime(detail.reviewedAt)}</span>
+          </li>
+        )}
+      </ul>
+
+      {reasonPrompt && (
+        <div style={{ marginTop: 16 }}>
+          <label className="form-label" htmlFor="kyc-reason">
+            {reasonPrompt === "rejected" ? "Raison du rejet" : "Informations manquantes à demander"}
+          </label>
+          <textarea
+            id="kyc-reason"
+            className="form-textarea"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+          />
+          <div className="button-row" style={{ marginTop: 8 }}>
+            <button
+              onClick={() => submitDecision(reasonPrompt, reason)}
+              disabled={busy || !reason.trim()}
+              className="btn-primary"
+            >
+              {busy ? <Loader2 size={14} className="animate-spin" /> : "Confirmer"}
+            </button>
+            <button onClick={() => { setReasonPrompt(null); setReason(""); }} className="button">Annuler</button>
+          </div>
+        </div>
+      )}
+
+      {!decided && !reasonPrompt && (
+        <div className="button-row" style={{ marginTop: 16 }}>
+          <button
+            onClick={() => setReasonPrompt("rejected")}
+            disabled={busy}
+            className="button"
+            style={{ color: "var(--color-danger, #b91c1c)" }}
+          >
+            <ShieldX size={14} /> Rejeter
+          </button>
+          <button
+            onClick={() => setReasonPrompt("correction_requested")}
+            disabled={busy}
+            className="button"
+          >
+            <ShieldAlert size={14} /> Demander une correction
+          </button>
+          <button
+            onClick={() => submitDecision("verified")}
+            disabled={busy}
+            className="btn-primary"
+          >
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <><ShieldCheck size={14} /> Valider le dossier</>}
+          </button>
+        </div>
+      )}
+    </article>
   );
 }
