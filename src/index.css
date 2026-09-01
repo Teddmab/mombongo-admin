@@ -1089,4 +1089,120 @@
     border-radius: 10px;
     padding: 8px 12px;
   }
+
+  /* ── ADM-UI-02: queue/detail split, progress bar, segment search ─── */
+  .queue-detail-grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(340px, 1.1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  @media (max-width: 1024px) {
+    .queue-detail-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .queue-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid hsl(var(--gray-50));
+    cursor: pointer;
+    background: none;
+    width: 100%;
+    text-align: left;
+    border-left: 3px solid transparent;
+  }
+  .queue-row:hover {
+    background: hsl(var(--gray-50));
+  }
+  .queue-row.selected {
+    background: hsl(var(--green-50));
+    border-left-color: hsl(var(--green-700));
+  }
+  .queue-row:last-child {
+    border-bottom: none;
+  }
+
+  .progress-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: hsl(var(--gray-100));
+    overflow: hidden;
+    width: 100%;
+  }
+  .progress-fill {
+    height: 100%;
+    background: hsl(var(--green-700));
+    border-radius: 999px;
+  }
+
+  .toolbar-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .search-input {
+    flex: 1;
+    min-width: 220px;
+    height: 38px;
+    padding: 0 14px;
+    border: 1px solid hsl(var(--gray-200));
+    border-radius: 10px;
+    font-size: 13px;
+    background: white;
+  }
+  .search-input:focus {
+    outline: none;
+    border-color: hsl(var(--green-700));
+  }
+
+  .reason-box {
+    width: 100%;
+    min-height: 72px;
+    padding: 10px 12px;
+    border: 1px solid hsl(var(--gray-200));
+    border-radius: 10px;
+    font-size: 13px;
+    font-family: var(--font-body);
+    resize: vertical;
+  }
+  .reason-box:focus {
+    outline: none;
+    border-color: hsl(var(--green-700));
+  }
+
+  .doc-image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .doc-image-grid img {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid hsl(var(--gray-200));
+    display: block;
+  }
+
+  .timeline-item {
+    display: flex;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid hsl(var(--gray-50));
+  }
+  .timeline-item:last-child {
+    border-bottom: none;
+  }
+  .timeline-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: hsl(var(--green-700));
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
 }

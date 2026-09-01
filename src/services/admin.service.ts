@@ -85,18 +85,6 @@ export interface BoursePriceRow {
   recordedAt?: { seconds: number };
 }
 
-export interface FarmerRow {
-  id: string;
-  name: string;
-  region: string;
-  cropType: string;
-  farmSizeHa: number;
-  requestedAmountUsd: number;
-  disbursedAmountUsd: number;
-  status: "pending" | "approved" | "active" | "completed";
-  agentId: string | null;
-}
-
 export interface FinancingApplicationRow {
   id: string;
   farmerId: string;
@@ -245,28 +233,11 @@ export class AdminService {
     await addDoc(collection(db, "bourse_prices"), { ...row, recordedAt: serverTimestamp() });
   }
 
-  async getFarmers(filters?: { status?: string }): Promise<FarmerRow[]> {
-    let q = query(collection(db, "farmers"), orderBy("createdAt", "desc"), limit(50));
-    if (filters?.status) {
-      q = query(collection(db, "farmers"), where("status", "==", filters.status), orderBy("createdAt", "desc"), limit(50));
-    }
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({
-      id: d.id,
-      name: d.data().name ?? "",
-      region: d.data().region ?? "",
-      cropType: d.data().cropType ?? "",
-      farmSizeHa: d.data().farmSizeHa ?? 0,
-      requestedAmountUsd: d.data().requestedAmountUsd ?? 0,
-      disbursedAmountUsd: d.data().disbursedAmountUsd ?? 0,
-      status: d.data().status ?? "pending",
-      agentId: d.data().agentId ?? null,
-    } as FarmerRow));
-  }
-
-  async approveFarmer(id: string): Promise<void> {
-    await updateDoc(doc(db, "farmers", id), { status: "approved" });
-  }
+  // getFarmers/approveFarmer removed (ADM-UI-02): both read/wrote the
+  // `farmers` collection, which only ever holds a `parcels` subcollection
+  // (see upsertFarmerParcel.ts in mombongo-functions) plus fictional
+  // seed-script fixtures — never real farmer identity. Real farmer data
+  // now comes from useAdminFarmers.ts (users + exploitations + cultures).
 
   async getFinancingApplications(): Promise<FinancingApplicationRow[]> {
     const snap = await getDocs(
