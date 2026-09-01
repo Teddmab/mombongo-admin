@@ -8,6 +8,8 @@ import { txTypeMeta, txAmount, txProviderRef, type TxDirection } from "@/lib/tra
 
 const TX_LIST_CAP = 150;
 
+export type ReconciliationStatus = "matched" | "exception" | "not_applicable" | "resolved_manually" | "unchecked";
+
 export interface TransactionRow {
   id: string;
   type: string;
@@ -24,6 +26,8 @@ export interface TransactionRow {
   createdAt: Timestamp | null;
   /** Only set for external_invoice_payment rows — used to route the resend-notification action. */
   externalInvoiceDocId: string | null;
+  /** "unchecked" (not "not_applicable") when reconcileTransactions hasn't processed this row yet — those are two different things and must not be conflated. */
+  reconciliationStatus: ReconciliationStatus;
 }
 
 async function resolveUserNames(uids: string[]): Promise<Map<string, string>> {
@@ -93,6 +97,7 @@ export function useTransactions() {
           reference: txProviderRef(id, data),
           createdAt: (data.createdAt as Timestamp) ?? null,
           externalInvoiceDocId: (data.externalInvoiceDocId as string) ?? null,
+          reconciliationStatus: (data.reconciliationStatus as ReconciliationStatus) ?? "unchecked",
         } satisfies TransactionRow;
       });
     },
@@ -109,6 +114,11 @@ export interface TransactionDetail extends TransactionRow {
   timeline: TransactionTimelineStep[];
   notificationStatus: "sent" | "failed" | "not_applicable";
   notificationFailureReason: string | null;
+  /** null means "not communicated by the operator," never zero — see extractPawapayFee's own doc comment on why this can't be assumed present. */
+  feeUsd: number | null;
+  reconciliationNote: string | null;
+  reconciliationResolvedByName: string | null;
+  reconciliationResolutionNote: string | null;
 }
 
 export function useTransactionDetail(id: string | undefined) {
@@ -120,7 +130,7 @@ export function useTransactionDetail(id: string | undefined) {
       const data = snap.data();
 
       const [names] = await Promise.all([
-        resolveUserNames([data.userId, data.fromUid, data.toUid].filter(Boolean) as string[]),
+        resolveUserNames([data.userId, data.fromUid, data.toUid, data.reconciliationResolvedBy].filter(Boolean) as string[]),
       ]);
 
       const meta = txTypeMeta(data.type as string);
@@ -180,9 +190,14 @@ export function useTransactionDetail(id: string | undefined) {
         reference: txProviderRef(id!, data),
         createdAt: (data.createdAt as Timestamp) ?? null,
         externalInvoiceDocId: (data.externalInvoiceDocId as string) ?? null,
+        reconciliationStatus: (data.reconciliationStatus as ReconciliationStatus) ?? "unchecked",
         timeline,
         notificationStatus,
         notificationFailureReason,
+        feeUsd: (data.feeUsd as number) ?? null,
+        reconciliationNote: (data.reconciliationNote as string) ?? null,
+        reconciliationResolvedByName: data.reconciliationResolvedBy ? (names.get(data.reconciliationResolvedBy as string) ?? null) : null,
+        reconciliationResolutionNote: (data.reconciliationResolutionNote as string) ?? null,
       } satisfies TransactionDetail;
     },
     enabled: !!id,
@@ -200,4 +215,100 @@ export function useResendPartnerNotification() {
       qc.invalidateQueries({ queryKey: ["admin-transaction-detail"] });
     },
   });
+}
+
+export function useResolveReconciliationException() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { transactionId: string; note: string }) => {
+      const fn = httpsCallable<typeof payload, { success: boolean }>(functions, "resolveReconciliationException");
+      return (await fn(payload)).data;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["admin-transactions-v2"] });
+      qc.invalidateQueries({ queryKey: ["admin-transaction-detail", variables.transactionId] });
+    },
+  });
+}
+
+export function useRunReconciliationCheck() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const fn = httpsCallable<Record<string, never>, { checked: number; exceptions: number }>(functions, "runReconciliationCheck");
+      return (await fn({})).data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-transactions-v2"] });
+    },
+  });
+}
+
+export interface SupportTicket {
+  id: string;
+  description: string;
+  createdByName: string;
+  createdAt: Timestamp | null;
+}
+
+export function useSupportTickets(transactionId: string | undefined) {
+  return useQuery<SupportTicket[]>({
+    queryKey: ["admin-support-tickets", transactionId],
+    queryFn: async () => {
+      // No orderBy here deliberately — where(...) + orderBy on a different
+      // field needs a composite index that doesn't exist yet; sort
+      // client-side instead (same pattern as admin.service.ts's merchant query).
+      const snap = await getDocs(query(collection(db, "support_tickets"), where("transactionId", "==", transactionId)));
+      const names = await resolveUserNames(snap.docs.map((d) => d.data().createdBy as string));
+      return snap.docs
+        .map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            description: (data.description as string) ?? "",
+            createdByName: names.get(data.createdBy as string) ?? (data.createdBy as string),
+            createdAt: (data.createdAt as Timestamp) ?? null,
+          } satisfies SupportTicket;
+        })
+        .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+    },
+    enabled: !!transactionId,
+  });
+}
+
+export function useCreateSupportTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { transactionId: string; description: string }) => {
+      const fn = httpsCallable<typeof payload, { ticketId: string }>(functions, "createSupportTicket");
+      return (await fn(payload)).data;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["admin-support-tickets", variables.transactionId] });
+    },
+  });
+}
+
+/** Mombongo-generated payment confirmation — never a provider-issued receipt image, since no such thing exists for any provider integrated here. Uses only real fields already shown in the detail view. */
+export function downloadReceipt(tx: TransactionDetail) {
+  const lines = [
+    "MOMBONGO — Confirmation de paiement",
+    "(Document généré par Mombongo — pas un reçu émis par l'opérateur)",
+    "",
+    `Référence : ${tx.reference}`,
+    `Type : ${tx.label}`,
+    `Participant : ${tx.participantName}${tx.secondaryParticipantName ? ` → ${tx.secondaryParticipantName}` : ""}`,
+    `Montant : ${tx.amount} ${tx.currency}`,
+    `Méthode : ${tx.method ?? "—"}${tx.operator ? ` · ${tx.operator}` : ""}`,
+    `Statut : ${tx.status}`,
+    `Date : ${tx.createdAt ? new Date(tx.createdAt.seconds * 1000).toLocaleString("fr-FR") : "—"}`,
+    `Frais opérateur : ${tx.feeUsd != null ? `${tx.feeUsd} ${tx.currency}` : "non communiqué"}`,
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `mombongo-confirmation-${tx.reference}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
 }

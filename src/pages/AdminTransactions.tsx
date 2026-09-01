@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Download, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Send, Loader2 } from "lucide-react";
+import { Download, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Send, Loader2, FileDown, Headset, ShieldAlert, ShieldCheck } from "lucide-react";
 import {
   useTransactions, useTransactionDetail, useResendPartnerNotification,
+  useResolveReconciliationException, useCreateSupportTicket, useSupportTickets, downloadReceipt,
   type TransactionRow, type TxDirection,
 } from "@/hooks/useTransactions";
 import { STATUS_LABEL, STATUS_PILL, formatAmount } from "@/lib/transactionDisplay";
 
-type Segment = "all" | "in" | "out";
+type Segment = "all" | "in" | "out" | "exception";
 
 function fmtDateTime(ts?: { seconds: number } | null) {
   return ts ? new Date(ts.seconds * 1000).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—";
@@ -72,7 +73,7 @@ export function AdminTransactions() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return all
-      .filter((r) => segment === "all" || r.direction === segment)
+      .filter((r) => segment === "all" || (segment === "exception" ? r.reconciliationStatus === "exception" : r.direction === segment))
       .filter((r) => !methodFilter || r.method === methodFilter)
       .filter((r) => !statusFilter || r.status === statusFilter)
       .filter((r) => !q || r.participantName.toLowerCase().includes(q) || r.reference.toLowerCase().includes(q));
@@ -86,6 +87,7 @@ export function AdminTransactions() {
       completed: thisMonth.filter((r) => r.status === "completed").length,
       pending: all.filter((r) => r.status === "pending").length,
       failed: all.filter((r) => r.status === "failed").length,
+      exceptions: all.filter((r) => r.reconciliationStatus === "exception").length,
     };
   }, [all]);
 
@@ -128,11 +130,15 @@ export function AdminTransactions() {
               <p className="section-kicker">Échouées</p>
               <p className="metric-value">{stats.failed}</p>
             </div>
+            <div className="metric-card">
+              <p className="section-kicker">À rapprocher</p>
+              <p className="metric-value" style={{ color: stats.exceptions > 0 ? "hsl(var(--danger))" : undefined }}>{stats.exceptions}</p>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap" style={{ marginTop: 16 }}>
             <div className="flex gap-1.5" role="tablist">
-              {([["all", "Toutes"], ["in", "Entrées"], ["out", "Sorties"]] as [Segment, string][]).map(([key, label]) => (
+              {([["all", "Toutes"], ["in", "Entrées"], ["out", "Sorties"], ["exception", "À rapprocher"]] as [Segment, string][]).map(([key, label]) => (
                 <button
                   key={key}
                   role="tab"
@@ -180,6 +186,7 @@ export function AdminTransactions() {
                       <th>Heure</th>
                       <th>Montant</th>
                       <th>Statut</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -196,12 +203,13 @@ export function AdminTransactions() {
                           <td style={{ fontSize: 12 }}>{fmtTime(row.createdAt)}</td>
                           <td style={{ fontVariantNumeric: "tabular-nums", color: signed.color, fontWeight: 600 }}>{signed.text}</td>
                           <td><span className={`pill ${STATUS_PILL[row.status] ?? ""}`}>{STATUS_LABEL[row.status] ?? row.status}</span></td>
+                          <td>{row.reconciliationStatus === "exception" && <span className="pill status-blocked">Examiner</span>}</td>
                         </tr>
                       );
                     })}
                     {filtered.length === 0 && (
                       <tr>
-                        <td colSpan={6} style={{ textAlign: "center", color: "hsl(var(--gray-500))", padding: 32 }}>
+                        <td colSpan={7} style={{ textAlign: "center", color: "hsl(var(--gray-500))", padding: 32 }}>
                           Aucune transaction ne correspond aux filtres actuels.
                         </td>
                       </tr>
@@ -237,6 +245,13 @@ export function AdminTransactionDetail() {
   const navigate = useNavigate();
   const { data: tx, isLoading, error } = useTransactionDetail(id);
   const resend = useResendPartnerNotification();
+  const resolveException = useResolveReconciliationException();
+  const [resolutionNote, setResolutionNote] = useState("");
+  const [showResolveForm, setShowResolveForm] = useState(false);
+  const { data: tickets = [] } = useSupportTickets(id);
+  const createTicket = useCreateSupportTicket();
+  const [ticketDescription, setTicketDescription] = useState("");
+  const [showTicketForm, setShowTicketForm] = useState(false);
 
   if (isLoading) {
     return <section className="page"><div className="h-64 bg-gray-100 rounded-2xl animate-pulse" /></section>;
@@ -260,7 +275,12 @@ export function AdminTransactionDetail() {
           <h1 className="page-title" style={{ color: signed.color }}>{signed.text}</h1>
           <p className="page-copy">{tx.participantName}{tx.secondaryParticipantName ? ` → ${tx.secondaryParticipantName}` : ""} · {fmtDateTime(tx.createdAt)}</p>
         </div>
-        <span className={`pill ${STATUS_PILL[tx.status] ?? ""}`}>{STATUS_LABEL[tx.status] ?? tx.status}</span>
+        <div className="flex items-center gap-2">
+          <span className={`pill ${STATUS_PILL[tx.status] ?? ""}`}>{STATUS_LABEL[tx.status] ?? tx.status}</span>
+          <button onClick={() => downloadReceipt(tx)} className="button-outline">
+            <FileDown size={14} /> Télécharger le reçu
+          </button>
+        </div>
       </div>
 
       <div className="panel-grid">
@@ -272,6 +292,7 @@ export function AdminTransactionDetail() {
               ["Type", tx.label],
               ["Méthode", tx.method ? `${tx.method.replace(/_/g, " ")}${tx.operator ? " · " + tx.operator : ""}` : "—"],
               ["Devise", tx.currency],
+              ["Frais opérateur", tx.feeUsd != null ? formatAmount(tx.feeUsd, tx.currency) : "non communiqué"],
             ] as [string, string][]).map(([k, v]) => (
               <div key={k} className="flex justify-between border-b border-gray-50 py-2">
                 <dt className="text-[13px] text-gray-500">{k}</dt>
@@ -324,6 +345,90 @@ export function AdminTransactionDetail() {
             {resend.isError && <p role="alert" className="error-text text-sm" style={{ marginTop: 8 }}>Échec de l'envoi.</p>}
           </article>
         )}
+
+        <article className="panel">
+          <div className="section-header"><h3>Rapprochement</h3></div>
+          {tx.reconciliationStatus === "unchecked" ? (
+            <p className="muted text-sm">Pas encore vérifié — le contrôle automatique passe toutes les 6 heures.</p>
+          ) : tx.reconciliationStatus === "not_applicable" ? (
+            <p className="muted text-sm">Sans objet pour ce type de transaction — aucune source secondaire à comparer.</p>
+          ) : tx.reconciliationStatus === "matched" ? (
+            <p className="pill status-active" style={{ display: "inline-block" }}>
+              <ShieldCheck size={12} /> Rapproché automatiquement
+            </p>
+          ) : tx.reconciliationStatus === "resolved_manually" ? (
+            <>
+              <p className="pill status-active" style={{ display: "inline-block", marginBottom: 8 }}>Résolu manuellement</p>
+              <p className="muted text-sm">Par {tx.reconciliationResolvedByName} — {tx.reconciliationResolutionNote}</p>
+            </>
+          ) : (
+            <>
+              <p className="pill status-blocked" style={{ display: "inline-block", marginBottom: 8 }}>
+                <ShieldAlert size={12} /> Exception détectée
+              </p>
+              {tx.reconciliationNote && <p className="muted text-sm" style={{ marginBottom: 12 }}>{tx.reconciliationNote}</p>}
+              {showResolveForm ? (
+                <div>
+                  <label className="form-label" htmlFor="resolution-note">Note de résolution</label>
+                  <textarea id="resolution-note" className="form-textarea" value={resolutionNote} onChange={(e) => setResolutionNote(e.target.value)} rows={2} />
+                  <div className="button-row" style={{ marginTop: 8 }}>
+                    <button
+                      onClick={() => resolveException.mutate({ transactionId: tx.id, note: resolutionNote }, { onSuccess: () => setShowResolveForm(false) })}
+                      disabled={resolveException.isPending || !resolutionNote.trim()}
+                      className="btn-primary"
+                      style={{ height: 36 }}
+                    >
+                      {resolveException.isPending ? <Loader2 size={14} className="animate-spin" /> : "Confirmer"}
+                    </button>
+                    <button onClick={() => setShowResolveForm(false)} className="button-outline">Annuler</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowResolveForm(true)} className="button-outline">Examiner</button>
+              )}
+              {resolveException.isError && <p role="alert" className="error-text text-sm" style={{ marginTop: 8 }}>Échec de la résolution.</p>}
+            </>
+          )}
+        </article>
+
+        <article className="panel">
+          <div className="section-header"><h3>Support</h3></div>
+          {tickets.length > 0 && (
+            <ul className="space-y-0" style={{ marginBottom: 12 }}>
+              {tickets.map((t) => (
+                <li key={t.id} className="text-sm py-2 border-b border-gray-50 last:border-0">
+                  <p>{t.description}</p>
+                  <p className="muted" style={{ fontSize: 11 }}>{t.createdByName} · {fmtDateTime(t.createdAt)}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          {showTicketForm ? (
+            <div>
+              <label className="form-label" htmlFor="ticket-description">Décrire le problème</label>
+              <textarea id="ticket-description" className="form-textarea" value={ticketDescription} onChange={(e) => setTicketDescription(e.target.value)} rows={3} />
+              <div className="button-row" style={{ marginTop: 8 }}>
+                <button
+                  onClick={() => createTicket.mutate(
+                    { transactionId: tx.id, description: ticketDescription },
+                    { onSuccess: () => { setShowTicketForm(false); setTicketDescription(""); } },
+                  )}
+                  disabled={createTicket.isPending || !ticketDescription.trim()}
+                  className="btn-primary"
+                  style={{ height: 36 }}
+                >
+                  {createTicket.isPending ? <Loader2 size={14} className="animate-spin" /> : "Ouvrir le dossier"}
+                </button>
+                <button onClick={() => setShowTicketForm(false)} className="button-outline">Annuler</button>
+              </div>
+              {createTicket.isError && <p role="alert" className="error-text text-sm" style={{ marginTop: 8 }}>Échec de la création.</p>}
+            </div>
+          ) : (
+            <button onClick={() => setShowTicketForm(true)} className="button-outline">
+              <Headset size={14} /> Ouvrir un dossier de support
+            </button>
+          )}
+        </article>
       </div>
 
       <p className="muted" style={{ fontSize: 12, marginTop: 16 }}>
