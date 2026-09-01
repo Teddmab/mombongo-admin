@@ -25,6 +25,7 @@ interface TxRow {
 
 const TYPE_OPTIONS = [
   "investment", "bourse_investment", "financing", "deposit", "withdrawal",
+  "external_invoice_payment",
 ] as const;
 const STATUS_OPTIONS = ["completed", "pending", "failed", "refunded"] as const;
 
