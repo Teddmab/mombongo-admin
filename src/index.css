@@ -60,6 +60,18 @@
     --danger: 0 84% 60%;
     --info: 217 91% 60%;
 
+    /* Aliases for a handful of pre-existing `var(--color-x)` references
+       scattered across admin pages (AdminAlerts, AdminDashboard,
+       AdminUsers, AdminOpportunities, etc.) that were never actually
+       defined anywhere — with no fallback, an unresolved var() on an
+       inherited property like `color` silently falls back to whatever
+       the nearest ancestor's color is, which happened to look plausible
+       in most of those contexts but was never actually "muted" gray.
+       Real fix is here, once, rather than touching every call site. */
+    --color-muted: hsl(var(--gray-500));
+    --color-error: hsl(var(--danger));
+    --color-success: hsl(var(--success));
+
     --bg-app: 42 25% 95%;
     --bg-ticker: 220 39% 11%;
 

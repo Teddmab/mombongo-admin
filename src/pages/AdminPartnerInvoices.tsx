@@ -49,7 +49,7 @@ export function AdminPartnerInvoices() {
             <option value="">Tous les statuts</option>
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
           </select>
-          <button onClick={() => navigate("/admin/partner-invoices/new")} className="btn-primary">
+          <button onClick={() => navigate("/admin/partner-invoices/new")} className="btn-primary" style={{ height: 36 }}>
             <Plus size={14} /> Créer une facture
           </button>
         </div>
@@ -90,7 +90,7 @@ export function AdminPartnerInvoices() {
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", color: "var(--color-muted)", padding: 32 }}>
+                    <td colSpan={7} style={{ textAlign: "center", color: "hsl(var(--gray-500))", padding: 32 }}>
                       Aucune facture ne correspond aux filtres actuels.
                     </td>
                   </tr>
