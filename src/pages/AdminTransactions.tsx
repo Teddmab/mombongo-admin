@@ -1,48 +1,54 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Download } from "lucide-react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { formatUsd } from "@/lib/utils";
-import { adminService } from "@/services/admin.service";
+import { Download, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Send, Loader2 } from "lucide-react";
+import {
+  useTransactions, useTransactionDetail, useResendPartnerNotification,
+  type TransactionRow, type TxDirection,
+} from "@/hooks/useTransactions";
+import { STATUS_LABEL, STATUS_PILL, formatAmount } from "@/lib/transactionDisplay";
 
-/* ─── Types ─────────────────────────────────────────────────────────────────── */
+type Segment = "all" | "in" | "out";
 
-interface TxRow {
-  id: string;
-  type: string;
-  description?: string;
-  amountUsd: number;
-  currency?: string;
-  status: string;
-  userId?: string;
-  createdAt?: string | { seconds: number };
-  failureReason?: string;
-  provider?: string;
-  reference?: string;
+function fmtDateTime(ts?: { seconds: number } | null) {
+  return ts ? new Date(ts.seconds * 1000).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—";
+}
+function fmtTime(ts?: { seconds: number } | null) {
+  return ts ? new Date(ts.seconds * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "—";
+}
+function isToday(ts?: { seconds: number } | null) {
+  if (!ts) return false;
+  const d = new Date(ts.seconds * 1000);
+  const now = new Date();
+  return d.toDateString() === now.toDateString();
+}
+function isThisMonth(ts?: { seconds: number } | null) {
+  if (!ts) return false;
+  const d = new Date(ts.seconds * 1000);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
 }
 
-const TYPE_OPTIONS = [
-  "investment", "bourse_investment", "financing", "deposit", "withdrawal",
-  "external_invoice_payment",
-] as const;
-const STATUS_OPTIONS = ["completed", "pending", "failed", "refunded"] as const;
-
-/* ─── Helpers ────────────────────────────────────────────────────────────────── */
-
-function fmtDate(ts?: string | { seconds: number }) {
-  if (!ts) return "—";
-  const d = typeof ts === "string" ? new Date(ts) : new Date(ts.seconds * 1000);
-  return d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+function DirectionIcon({ direction }: { direction: TxDirection }) {
+  if (direction === "in") return <ArrowDownLeft size={16} color="#15803d" />;
+  if (direction === "out") return <ArrowUpRight size={16} color="#b91c1c" />;
+  return <ArrowLeftRight size={16} color="#6b7280" />;
 }
 
-function downloadCsv(rows: TxRow[]) {
-  const headers = ["ID", "Type", "Description", "Montant USD", "Statut", "Utilisateur", "Date"];
-  const lines = rows.map(r => [
-    r.id, r.type, r.description ?? "", r.amountUsd, r.status, r.userId ?? "", fmtDate(r.createdAt),
-  ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
-  const blob = new Blob([headers.join(",") + "\n" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+function signedAmount(row: TransactionRow) {
+  const formatted = formatAmount(row.amount, row.currency);
+  if (row.direction === "in") return { text: `+${formatted}`, color: "#15803d" };
+  if (row.direction === "out") return { text: `−${formatted}`, color: "#b91c1c" };
+  return { text: formatted, color: "#374151" };
+}
+
+function downloadCsv(rows: TransactionRow[]) {
+  const headers = ["Référence", "Type", "Participant", "Montant", "Devise", "Statut", "Date"];
+  const lines = rows.map((r) =>
+    [r.reference, r.label, r.participantName, r.amount, r.currency, STATUS_LABEL[r.status] ?? r.status, fmtDateTime(r.createdAt)]
+      .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+      .join(","),
+  );
+  const blob = new Blob([[headers.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -55,133 +61,172 @@ function downloadCsv(rows: TxRow[]) {
 
 export function AdminTransactions() {
   const navigate = useNavigate();
-  const [typeFilter, setTypeFilter] = useState("");
+  const { data: all = [], isLoading, error } = useTransactions();
+  const [segment, setSegment] = useState<Segment>("all");
+  const [methodFilter, setMethodFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
-  const { data: all = [], isLoading } = useQuery({
-    queryKey: ["admin-transactions"],
-    queryFn: () => adminService.getTransactions() as Promise<TxRow[]>,
-  });
+  const methods = useMemo(() => Array.from(new Set(all.map((r) => r.method).filter((m): m is string => !!m))), [all]);
 
-  const rows = all.filter(r => {
-    if (typeFilter && r.type !== typeFilter) return false;
-    if (statusFilter && r.status !== statusFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return (
-        r.id.toLowerCase().includes(q) ||
-        (r.userId ?? "").toLowerCase().includes(q) ||
-        (r.description ?? "").toLowerCase().includes(q) ||
-        (r.reference ?? "").toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return all
+      .filter((r) => segment === "all" || r.direction === segment)
+      .filter((r) => !methodFilter || r.method === methodFilter)
+      .filter((r) => !statusFilter || r.status === statusFilter)
+      .filter((r) => !q || r.participantName.toLowerCase().includes(q) || r.reference.toLowerCase().includes(q));
+  }, [all, segment, methodFilter, statusFilter, search]);
+
+  const stats = useMemo(() => {
+    const thisMonth = all.filter((r) => isThisMonth(r.createdAt));
+    const volumeUsd = thisMonth.filter((r) => r.currency === "USD").reduce((s, r) => s + r.amount, 0);
+    return {
+      volumeUsd,
+      completed: thisMonth.filter((r) => r.status === "completed").length,
+      pending: all.filter((r) => r.status === "pending").length,
+      failed: all.filter((r) => r.status === "failed").length,
+    };
+  }, [all]);
+
+  const todaySummary = useMemo(() => {
+    const today = all.filter((r) => isToday(r.createdAt));
+    const inUsd = today.filter((r) => r.direction === "in" && r.currency === "USD").reduce((s, r) => s + r.amount, 0);
+    const outUsd = today.filter((r) => r.direction === "out" && r.currency === "USD").reduce((s, r) => s + r.amount, 0);
+    return { inUsd, outUsd, count: today.length };
+  }, [all]);
 
   return (
     <section className="page">
       <div className="page-header">
         <div>
-          <div className="section-kicker">Transactions</div>
-          <h1 className="page-title">Journal financier</h1>
-          <p className="page-copy">{all.length} transaction{all.length !== 1 ? "s" : ""} · {rows.length} affichées</p>
+          <div className="section-kicker">Finance</div>
+          <h1 className="page-title">Transactions</h1>
+          <p className="page-copy">Suivez les mouvements d'argent et les paiements.</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="ID, utilisateur…"
-            className="h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white w-40"
-          />
-          <select
-            value={typeFilter}
-            onChange={e => setTypeFilter(e.target.value)}
-            className="h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white"
-          >
-            <option value="">Tous les types</option>
-            {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            className="h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white"
-          >
-            <option value="">Tous les statuts</option>
-            {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <button
-            onClick={() => downloadCsv(rows)}
-            className="flex items-center gap-1.5 h-9 px-3 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 transition"
-          >
-            <Download size={14} /> CSV
-          </button>
-        </div>
+        <button onClick={() => downloadCsv(filtered)} className="button">
+          <Download size={14} /> Exporter
+        </button>
       </div>
 
-      <article className="panel">
-        {isLoading ? (
-          <div className="space-y-2 p-4">
-            {[1, 2, 3, 4, 5].map(n => <div key={n} className="h-10 bg-gray-100 rounded animate-pulse" />)}
+      <div className="panel-grid" style={{ gridTemplateColumns: "1fr 280px" }}>
+        <div>
+          <div className="stats-grid">
+            <div className="metric-card">
+              <p className="section-kicker">Volume ce mois (USD)</p>
+              <p className="metric-value">{formatAmount(stats.volumeUsd, "USD")}</p>
+            </div>
+            <div className="metric-card">
+              <p className="section-kicker">Réussies ce mois</p>
+              <p className="metric-value">{stats.completed}</p>
+            </div>
+            <div className="metric-card">
+              <p className="section-kicker">En cours</p>
+              <p className="metric-value">{stats.pending}</p>
+            </div>
+            <div className="metric-card">
+              <p className="section-kicker">Échouées</p>
+              <p className="metric-value">{stats.failed}</p>
+            </div>
           </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Référence</th>
-                  <th>Type</th>
-                  <th>Description</th>
-                  <th>Montant</th>
-                  <th>Date</th>
-                  <th>Statut</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(row => (
-                  <tr key={row.id}>
-                    <td style={{ fontFamily: "monospace", fontSize: 11, color: "var(--color-muted)" }}>
-                      {row.id.slice(0, 12)}…
-                    </td>
-                    <td className="capitalize">{row.type?.replace(/_/g, " ") || "—"}</td>
-                    <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {row.description || "—"}
-                    </td>
-                    <td style={{ fontVariantNumeric: "tabular-nums" }}>{formatUsd(row.amountUsd)}</td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(row.createdAt)}</td>
-                    <td>
-                      <span className={`pill ${
-                        row.status === "completed" ? "status-active"
-                        : row.status === "failed" ? "status-blocked"
-                        : row.status === "pending" ? "status-pending"
-                        : ""
-                      }`}>
-                        {row.status}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        onClick={() => navigate(`/admin/transactions/${row.id}`)}
-                        className="text-xs text-blue-600 hover:underline"
-                      >
-                        Détails
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: "center", color: "var(--color-muted)", padding: "32px" }}>
-                      Aucune transaction trouvée
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+
+          <div className="flex items-center gap-3 flex-wrap" style={{ marginTop: 16 }}>
+            <div className="flex gap-1.5" role="tablist">
+              {([["all", "Toutes"], ["in", "Entrées"], ["out", "Sorties"]] as [Segment, string][]).map(([key, label]) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={segment === key}
+                  onClick={() => setSegment(key)}
+                  className="button"
+                  style={segment === key ? { background: "var(--color-accent, #0f5132)", color: "#fff" } : undefined}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Nom ou référence"
+              className="form-input"
+              style={{ maxWidth: 220 }}
+              aria-label="Rechercher une transaction"
+            />
+            <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} className="form-select" aria-label="Filtrer par méthode">
+              <option value="">Toutes les méthodes</option>
+              {methods.map((m) => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
+            </select>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="form-select" aria-label="Filtrer par statut">
+              <option value="">Tous les statuts</option>
+              {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
           </div>
-        )}
-      </article>
+
+          <article className="panel" style={{ marginTop: 12 }}>
+            {error ? (
+              <p role="alert" className="error-text" style={{ padding: 24 }}>Impossible de charger les transactions. Réessayez plus tard.</p>
+            ) : isLoading ? (
+              <div className="space-y-2 p-4">
+                {[1, 2, 3, 4, 5].map((n) => <div key={n} className="h-10 bg-gray-100 rounded animate-pulse" />)}
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th>Transaction</th>
+                      <th>Méthode</th>
+                      <th>Heure</th>
+                      <th>Montant</th>
+                      <th>Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((row) => {
+                      const signed = signedAmount(row);
+                      return (
+                        <tr key={row.id} onClick={() => navigate(`/admin/transactions/${row.id}`)} style={{ cursor: "pointer" }}>
+                          <td><DirectionIcon direction={row.direction} /></td>
+                          <td>
+                            <div className="font-semibold">{row.label} — {row.participantName}{row.secondaryParticipantName ? ` → ${row.secondaryParticipantName}` : ""}</div>
+                            <div style={{ fontSize: 12, color: "var(--color-muted)", fontFamily: "monospace" }}>{row.reference.slice(0, 16)}</div>
+                          </td>
+                          <td style={{ fontSize: 13 }}>{row.method ? row.method.replace(/_/g, " ") : "—"}{row.operator ? ` · ${row.operator}` : ""}</td>
+                          <td style={{ fontSize: 12 }}>{fmtTime(row.createdAt)}</td>
+                          <td style={{ fontVariantNumeric: "tabular-nums", color: signed.color, fontWeight: 600 }}>{signed.text}</td>
+                          <td><span className={`pill ${STATUS_PILL[row.status] ?? ""}`}>{STATUS_LABEL[row.status] ?? row.status}</span></td>
+                        </tr>
+                      );
+                    })}
+                    {filtered.length === 0 && (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: "center", color: "var(--color-muted)", padding: 32 }}>
+                          Aucune transaction ne correspond aux filtres actuels.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </article>
+        </div>
+
+        <aside className="panel">
+          <div className="section-header"><h3>Résumé du jour</h3></div>
+          <div className="metric-card" style={{ marginBottom: 8 }}>
+            <p className="section-kicker">Total entrant</p>
+            <p className="metric-value" style={{ color: "#15803d" }}>+{formatAmount(todaySummary.inUsd, "USD")}</p>
+          </div>
+          <div className="metric-card" style={{ marginBottom: 8 }}>
+            <p className="section-kicker">Total sortant</p>
+            <p className="metric-value" style={{ color: "#b91c1c" }}>−{formatAmount(todaySummary.outUsd, "USD")}</p>
+          </div>
+          <p className="muted" style={{ fontSize: 12 }}>{todaySummary.count} transaction{todaySummary.count !== 1 ? "s" : ""} aujourd'hui</p>
+        </aside>
+      </div>
     </section>
   );
 }
@@ -191,43 +236,20 @@ export function AdminTransactions() {
 export function AdminTransactionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-
-  const { data: tx, isLoading } = useQuery({
-    queryKey: ["admin-transaction", id],
-    queryFn: async () => {
-      const snap = await getDoc(doc(db, "transactions", id!));
-      if (!snap.exists()) return null;
-      return { id: snap.id, ...snap.data() } as TxRow;
-    },
-    enabled: !!id,
-  });
+  const { data: tx, isLoading, error } = useTransactionDetail(id);
+  const resend = useResendPartnerNotification();
 
   if (isLoading) {
-    return (
-      <section className="page">
-        <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
-      </section>
-    );
+    return <section className="page"><div className="h-64 bg-gray-100 rounded-2xl animate-pulse" /></section>;
+  }
+  if (error) {
+    return <section className="page"><p role="alert" className="error-text text-center py-20">Impossible de charger cette transaction.</p></section>;
   }
   if (!tx) {
-    return (
-      <section className="page">
-        <p className="text-center text-gray-400 py-20">Transaction introuvable</p>
-      </section>
-    );
+    return <section className="page"><p className="text-center text-gray-400 py-20">Transaction introuvable</p></section>;
   }
 
-  const fields: [string, string][] = [
-    ["Type", tx.type?.replace(/_/g, " ") || "—"],
-    ["Montant", formatUsd(tx.amountUsd)],
-    ["Devise", tx.currency || "USD"],
-    ["Statut", tx.status],
-    ["Utilisateur ID", tx.userId || "—"],
-    ["Prestataire", tx.provider || "—"],
-    ["Référence externe", tx.reference || "—"],
-    ["Raison d'échec", tx.failureReason || "—"],
-    ["Date", fmtDate(tx.createdAt)],
-  ];
+  const signed = signedAmount(tx);
 
   return (
     <section className="page">
@@ -235,28 +257,79 @@ export function AdminTransactionDetail() {
 
       <div className="page-header">
         <div>
-          <div className="section-kicker">Transaction</div>
-          <h1 className="page-title" style={{ fontFamily: "monospace", fontSize: 18 }}>{tx.id}</h1>
+          <div className="section-kicker">{tx.label}</div>
+          <h1 className="page-title" style={{ color: signed.color }}>{signed.text}</h1>
+          <p className="page-copy">{tx.participantName}{tx.secondaryParticipantName ? ` → ${tx.secondaryParticipantName}` : ""} · {fmtDateTime(tx.createdAt)}</p>
         </div>
-        <span className={`pill ${
-          tx.status === "completed" ? "status-active"
-          : tx.status === "failed" ? "status-blocked"
-          : "status-pending"
-        }`}>
-          {tx.status}
-        </span>
+        <span className={`pill ${STATUS_PILL[tx.status] ?? ""}`}>{STATUS_LABEL[tx.status] ?? tx.status}</span>
       </div>
 
-      <article className="panel" style={{ maxWidth: 560 }}>
-        <dl>
-          {fields.map(([k, v]) => (
-            <div key={k} className="flex justify-between border-b border-gray-50 py-2.5 last:border-0">
-              <dt className="text-sm text-gray-500">{k}</dt>
-              <dd className="text-sm font-semibold text-gray-900 capitalize">{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </article>
+      <div className="panel-grid">
+        <article className="panel">
+          <div className="section-header"><h3>Détails du paiement</h3></div>
+          <dl className="space-y-0">
+            {([
+              ["Référence", tx.reference],
+              ["Type", tx.label],
+              ["Méthode", tx.method ? `${tx.method.replace(/_/g, " ")}${tx.operator ? " · " + tx.operator : ""}` : "—"],
+              ["Devise", tx.currency],
+            ] as [string, string][]).map(([k, v]) => (
+              <div key={k} className="flex justify-between border-b border-gray-50 py-2">
+                <dt className="text-[13px] text-gray-500">{k}</dt>
+                <dd className="text-[13px] font-semibold text-gray-900" style={{ fontFamily: k === "Référence" ? "monospace" : undefined }}>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </article>
+
+        <article className="panel">
+          <div className="section-header"><h3>Progression</h3></div>
+          {tx.timeline.length === 0 ? (
+            <p className="muted text-sm">Aucun évènement enregistré pour cette transaction.</p>
+          ) : (
+            <ul className="space-y-0">
+              {tx.timeline.map((step, i) => (
+                <li key={i} className="flex justify-between text-sm py-2 border-b border-gray-50 last:border-0">
+                  <span className="text-gray-600">{step.label}</span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtDateTime(step.at)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+
+        {tx.type === "external_invoice_payment" && (
+          <article className="panel">
+            <div className="section-header"><h3>Notification partenaire</h3></div>
+            {tx.notificationStatus === "not_applicable" ? (
+              <p className="muted text-sm">Sans objet.</p>
+            ) : tx.notificationStatus === "sent" ? (
+              <p className="pill status-active" style={{ display: "inline-block" }}>Aucun échec enregistré</p>
+            ) : (
+              <>
+                <p className="pill status-blocked" style={{ display: "inline-block", marginBottom: 8 }}>Échec de notification</p>
+                {tx.notificationFailureReason && <p className="muted text-sm">{tx.notificationFailureReason}</p>}
+              </>
+            )}
+            {tx.externalInvoiceDocId && (
+              <button
+                onClick={() => resend.mutate(tx.externalInvoiceDocId!)}
+                disabled={resend.isPending}
+                className="button"
+                style={{ marginTop: 12 }}
+              >
+                {resend.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Renvoyer la notification
+              </button>
+            )}
+            {resend.isSuccess && <p className="muted text-sm" style={{ marginTop: 8 }}>Notification renvoyée.</p>}
+            {resend.isError && <p role="alert" className="error-text text-sm" style={{ marginTop: 8 }}>Échec de l'envoi.</p>}
+          </article>
+        )}
+      </div>
+
+      <p className="muted" style={{ fontSize: 12, marginTop: 16 }}>
+        Pour la sécurité des données, les paiements ne peuvent pas être marqués comme payés manuellement.
+      </p>
     </section>
   );
 }

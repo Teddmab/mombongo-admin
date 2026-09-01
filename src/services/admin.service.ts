@@ -37,14 +37,6 @@ export interface AdminUserRow {
   status: "active" | "pending" | "suspended";
 }
 
-export interface AdminTransactionRow {
-  id: string;
-  description: string;
-  amountUsd: number;
-  status: "completed" | "pending" | "blocked";
-  createdAt: string;
-}
-
 export interface FinancingRow {
   id: string;
   farmer: string;
@@ -152,22 +144,6 @@ export class AdminService {
           role: d.data().role,
           status: d.data().isActive ? "active" : "suspended",
         } as AdminUserRow)
-    );
-  }
-
-  async getTransactions(): Promise<AdminTransactionRow[]> {
-    const snap = await getDocs(
-      query(collection(db, "transactions"), orderBy("createdAt", "desc"), limit(50))
-    );
-    return snap.docs.map(
-      (d) =>
-        ({
-          id: d.id,
-          description: d.data().description ?? "",
-          amountUsd: d.data().amountUsd ?? 0,
-          status: d.data().status ?? "pending",
-          createdAt: d.data().createdAt?.toDate?.()?.toISOString() ?? "",
-        } as AdminTransactionRow)
     );
   }
 
