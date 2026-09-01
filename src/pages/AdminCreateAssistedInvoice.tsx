@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Phone, UserCheck, Users2, Loader2, CheckCircle2 } from "lucide-react";
+import { Combobox } from "@/components/Combobox";
 import {
   useEligibleFarmers, useEligibleMerchants, useFarmerListings, useExchangeRatePreview,
   useCreateAssistedInvoice, type EligiblePerson, type ConsentMethod,
 } from "@/hooks/useAssistedInvoice";
+import type { FarmerListing } from "@/hooks/useAssistedInvoice";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 const STEP_LABELS: [Step, string][] = [[1, "Agriculteur"], [2, "Commerçant"], [3, "Annonce"], [4, "Montants"], [5, "Vérification"]];
@@ -18,44 +20,39 @@ const CONSENT_OPTIONS: { key: ConsentMethod; label: string; icon: React.ReactNod
 function PersonPicker({
   people, isLoading, selected, onSelect, placeholder,
 }: { people: EligiblePerson[]; isLoading: boolean; selected: string | null; onSelect: (uid: string) => void; placeholder: string }) {
-  const [search, setSearch] = useState("");
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return !q ? people : people.filter((p) => p.fullName.toLowerCase().includes(q) || p.phone.includes(q));
-  }, [people, search]);
-
   return (
-    <div>
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={placeholder}
-        className="form-input"
-        style={{ marginBottom: 12, width: "100%" }}
-      />
-      {isLoading ? (
-        <div className="space-y-2">{[1, 2, 3].map((n) => <div key={n} className="h-14 bg-gray-100 rounded animate-pulse" />)}</div>
-      ) : filtered.length === 0 ? (
-        <p className="muted text-sm">Aucun compte vérifié ne correspond.</p>
-      ) : (
-        <ul className="space-y-1.5">
-          {filtered.map((p) => (
-            <li key={p.uid}>
-              <button
-                onClick={() => onSelect(p.uid)}
-                className={`select-row ${selected === p.uid ? "selected" : ""}`}
-              >
-                <div>
-                  <div className="font-semibold text-sm">{p.fullName}</div>
-                  <div style={{ fontSize: 12, color: "hsl(var(--gray-500))" }}>{p.phone || "—"} {p.province ? `· ${p.province}` : ""}</div>
-                </div>
-                <span className="pill status-active">Identité vérifiée</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <Combobox
+      options={people.map((p) => ({
+        id: p.uid,
+        label: p.fullName,
+        sublabel: `${p.phone || "—"}${p.province ? ` · ${p.province}` : ""}`,
+        badge: "Identité vérifiée",
+      }))}
+      isLoading={isLoading}
+      selectedId={selected}
+      onSelect={onSelect}
+      placeholder={placeholder}
+      emptyLabel="Aucun compte vérifié ne correspond."
+    />
+  );
+}
+
+function ListingPicker({
+  listings, isLoading, selected, onSelect,
+}: { listings: FarmerListing[]; isLoading: boolean; selected: string | null; onSelect: (id: string) => void }) {
+  return (
+    <Combobox
+      options={listings.map((l) => ({
+        id: l.id,
+        label: `${l.commodity} — ${l.quantityKg} kg disponibles`,
+        sublabel: `${l.pricePerKgCdf.toLocaleString("fr-FR")} CDF/kg · ${l.province ?? "—"}`,
+      }))}
+      isLoading={isLoading}
+      selectedId={selected}
+      onSelect={onSelect}
+      placeholder="Rechercher une annonce par produit"
+      emptyLabel="Cet agriculteur n'a aucune annonce active."
+    />
   );
 }
 
@@ -139,27 +136,12 @@ export function AdminCreateAssistedInvoice() {
           {step === 3 && (
             <>
               <div className="section-header"><h3>3. Sélectionner l'annonce</h3></div>
-              {listingsLoading ? (
-                <div className="h-24 bg-gray-100 rounded animate-pulse" />
-              ) : listings.length === 0 ? (
-                <p className="muted text-sm">Cet agriculteur n'a aucune annonce active.</p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {listings.map((l) => (
-                    <li key={l.id}>
-                      <button
-                        onClick={() => { setListingId(l.id); setQuantityKg(""); }}
-                        className={`select-row ${listingId === l.id ? "selected" : ""}`}
-                      >
-                        <div>
-                          <div className="font-semibold text-sm">{l.commodity} — {l.quantityKg} kg disponibles</div>
-                          <div style={{ fontSize: 12, color: "hsl(var(--gray-500))" }}>{l.pricePerKgCdf.toLocaleString("fr-FR")} CDF/kg · {l.province ?? "—"}</div>
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <ListingPicker
+                listings={listings}
+                isLoading={listingsLoading}
+                selected={listingId}
+                onSelect={(id) => { setListingId(id); setQuantityKg(""); }}
+              />
               {listing && (
                 <div style={{ marginTop: 16 }}>
                   <label className="form-label" htmlFor="quantity">Quantité (kg, max {listing.quantityKg})</label>
