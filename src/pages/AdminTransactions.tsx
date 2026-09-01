@@ -138,8 +138,7 @@ export function AdminTransactions() {
                   role="tab"
                   aria-selected={segment === key}
                   onClick={() => setSegment(key)}
-                  className="button"
-                  style={segment === key ? { background: "var(--color-accent, #0f5132)", color: "#fff" } : undefined}
+                  className={`button-outline ${segment === key ? "active" : ""}`}
                 >
                   {label}
                 </button>
@@ -191,7 +190,7 @@ export function AdminTransactions() {
                           <td><DirectionIcon direction={row.direction} /></td>
                           <td>
                             <div className="font-semibold">{row.label} — {row.participantName}{row.secondaryParticipantName ? ` → ${row.secondaryParticipantName}` : ""}</div>
-                            <div style={{ fontSize: 12, color: "var(--color-muted)", fontFamily: "monospace" }}>{row.reference.slice(0, 16)}</div>
+                            <div style={{ fontSize: 12, color: "hsl(var(--gray-500))", fontFamily: "monospace" }}>{row.reference.slice(0, 16)}</div>
                           </td>
                           <td style={{ fontSize: 13 }}>{row.method ? row.method.replace(/_/g, " ") : "—"}{row.operator ? ` · ${row.operator}` : ""}</td>
                           <td style={{ fontSize: 12 }}>{fmtTime(row.createdAt)}</td>
@@ -202,7 +201,7 @@ export function AdminTransactions() {
                     })}
                     {filtered.length === 0 && (
                       <tr>
-                        <td colSpan={6} style={{ textAlign: "center", color: "var(--color-muted)", padding: 32 }}>
+                        <td colSpan={6} style={{ textAlign: "center", color: "hsl(var(--gray-500))", padding: 32 }}>
                           Aucune transaction ne correspond aux filtres actuels.
                         </td>
                       </tr>

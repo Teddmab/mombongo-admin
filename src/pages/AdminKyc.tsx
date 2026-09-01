@@ -93,8 +93,7 @@ export function AdminKyc() {
                   role="tab"
                   aria-selected={tab === t.key}
                   onClick={() => setTab(t.key)}
-                  className="button"
-                  style={tab === t.key ? { background: "var(--color-accent, #0f5132)", color: "#fff" } : undefined}
+                  className={`button-outline ${tab === t.key ? "active" : ""}`}
                 >
                   {t.label}
                 </button>
@@ -121,16 +120,13 @@ export function AdminKyc() {
                   <li key={r.uid}>
                     <button
                       onClick={() => setSelectedUid(r.uid)}
-                      className="list-row w-full text-left"
-                      style={{ background: selected === r.uid ? "var(--color-row-active, #f0f7f2)" : undefined }}
+                      className={`select-row ${selected === r.uid ? "selected" : ""}`}
                     >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-semibold text-sm">{r.fullName}</div>
-                          <div style={{ fontSize: 12, color: "var(--color-muted)" }}>{r.role} · {fmtDateTime(r.submittedAt)}</div>
-                        </div>
-                        <span className={`pill ${STATUS_PILL[r.status]}`}>{STATUS_LABEL[r.status]}</span>
+                      <div>
+                        <div className="font-semibold text-sm">{r.fullName}</div>
+                        <div style={{ fontSize: 12, color: "hsl(var(--gray-500))" }}>{r.role} · {fmtDateTime(r.submittedAt)}</div>
                       </div>
+                      <span className={`pill ${STATUS_PILL[r.status]}`}>{STATUS_LABEL[r.status]}</span>
                     </button>
                   </li>
                 ))}
@@ -186,7 +182,7 @@ function KycDetailPane({ uid }: { uid: string | undefined }) {
       ) : (
         <div className="flex gap-3 flex-wrap">
           {(docs?.urls ?? []).map((url, i) => (
-            <img key={i} src={url} alt={`Document ${i + 1}`} style={{ width: 160, height: 160, objectFit: "cover", borderRadius: 12, border: "1px solid var(--color-border, #eee)" }} />
+            <img key={i} src={url} alt={`Document ${i + 1}`} style={{ width: 160, height: 160, objectFit: "cover", borderRadius: 12, border: "1px solid hsl(var(--gray-200))" }} />
           ))}
           {docs?.urls.length === 0 && <p className="muted">Aucun document.</p>}
         </div>
@@ -226,10 +222,11 @@ function KycDetailPane({ uid }: { uid: string | undefined }) {
               onClick={() => submitDecision(reasonPrompt, reason)}
               disabled={busy || !reason.trim()}
               className="btn-primary"
+              style={{ height: 38 }}
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : "Confirmer"}
             </button>
-            <button onClick={() => { setReasonPrompt(null); setReason(""); }} className="button">Annuler</button>
+            <button onClick={() => { setReasonPrompt(null); setReason(""); }} className="button-outline">Annuler</button>
           </div>
         </div>
       )}
@@ -239,15 +236,14 @@ function KycDetailPane({ uid }: { uid: string | undefined }) {
           <button
             onClick={() => setReasonPrompt("rejected")}
             disabled={busy}
-            className="button"
-            style={{ color: "var(--color-danger, #b91c1c)" }}
+            className="button-outline danger"
           >
             <ShieldX size={14} /> Rejeter
           </button>
           <button
             onClick={() => setReasonPrompt("correction_requested")}
             disabled={busy}
-            className="button"
+            className="button-outline"
           >
             <ShieldAlert size={14} /> Demander une correction
           </button>
@@ -255,6 +251,7 @@ function KycDetailPane({ uid }: { uid: string | undefined }) {
             onClick={() => submitDecision("verified")}
             disabled={busy}
             className="btn-primary"
+            style={{ height: 38 }}
           >
             {busy ? <Loader2 size={14} className="animate-spin" /> : <><ShieldCheck size={14} /> Valider le dossier</>}
           </button>
