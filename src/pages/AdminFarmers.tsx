@@ -105,8 +105,7 @@ export function AdminFarmers() {
               role="tab"
               aria-selected={segment === s.key}
               onClick={() => setSegment(s.key)}
-              className="button"
-              style={segment === s.key ? { background: "var(--color-accent, #0f5132)", color: "#fff" } : undefined}
+              className={`button-outline ${segment === s.key ? "active" : ""}`}
             >
               {s.label}
             </button>
@@ -144,11 +143,11 @@ export function AdminFarmers() {
                       <tr
                         key={f.id}
                         onClick={() => setSelectedId(f.id)}
-                        style={{ cursor: "pointer", background: selectedId === f.id ? "var(--color-row-active, #f0f7f2)" : undefined }}
+                        style={{ cursor: "pointer", background: selectedId === f.id ? "hsl(var(--green-50))" : undefined }}
                       >
                         <td>
                           <div className="font-semibold">{f.fullName}</div>
-                          <div style={{ fontSize: 12, color: "var(--color-muted)" }}>{f.phone || "—"}</div>
+                          <div style={{ fontSize: 12, color: "hsl(var(--gray-500))" }}>{f.phone || "—"}</div>
                         </td>
                         <td>{f.province ?? "—"}</td>
                         <td>{f.primaryCommodity ?? "—"}</td>
@@ -160,7 +159,7 @@ export function AdminFarmers() {
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: "center", color: "var(--color-muted)", padding: 32 }}>
+                      <td colSpan={6} style={{ textAlign: "center", color: "hsl(var(--gray-500))", padding: 32 }}>
                         Aucun agriculteur ne correspond aux filtres actuels.
                       </td>
                     </tr>
@@ -189,7 +188,7 @@ function FarmerPreview({ farmer, onClose, onOpenProfile }: { farmer: FarmerListI
           <h3 style={{ margin: "4px 0" }}>{farmer.fullName}</h3>
           {farmer.kycStatus === "verified" && <span className="pill status-active">Identité vérifiée</span>}
         </div>
-        <button onClick={onClose} aria-label="Fermer l'aperçu" className="button" style={{ padding: 6 }}>
+        <button onClick={onClose} aria-label="Fermer l'aperçu" className="button-outline" style={{ height: 32, width: 32, padding: 0, justifyContent: "center" }}>
           <X size={16} />
         </button>
       </div>
@@ -223,10 +222,11 @@ function FarmerPreview({ farmer, onClose, onOpenProfile }: { farmer: FarmerListI
       </div>
 
       <div className="flex flex-col gap-2" style={{ marginTop: 16 }}>
-        <button onClick={onOpenProfile} className="btn-primary">Voir le profil</button>
+        <button onClick={onOpenProfile} className="btn-primary" style={{ height: 40 }}>Voir le profil</button>
         <button
           onClick={() => navigate(`/admin/farmer-invoices/new?farmerId=${farmer.id}`)}
-          className="button"
+          className="button-outline"
+          style={{ justifyContent: "center" }}
         >
           Créer une facture
         </button>

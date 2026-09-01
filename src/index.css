@@ -60,6 +60,18 @@
     --danger: 0 84% 60%;
     --info: 217 91% 60%;
 
+    /* Aliases for a handful of pre-existing `var(--color-x)` references
+       scattered across admin pages (AdminAlerts, AdminDashboard,
+       AdminUsers, AdminOpportunities, etc.) that were never actually
+       defined anywhere — with no fallback, an unresolved var() on an
+       inherited property like `color` silently falls back to whatever
+       the nearest ancestor's color is, which happened to look plausible
+       in most of those contexts but was never actually "muted" gray.
+       Real fix is here, once, rather than touching every call site. */
+    --color-muted: hsl(var(--gray-500));
+    --color-error: hsl(var(--danger));
+    --color-success: hsl(var(--success));
+
     --bg-app: 42 25% 95%;
     --bg-ticker: 220 39% 11%;
 
@@ -371,6 +383,70 @@
   .btn-primary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* Neutral secondary action — .button is a solid-green primary-weight
+     button used elsewhere for single standalone CTAs (login submit,
+     sign out); it was never meant for "Annuler"/"Retour"/segment-toggle
+     use, which needs to look visibly secondary until active. */
+  .button-outline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 16px;
+    background: white;
+    color: hsl(var(--gray-700));
+    border: 1px solid hsl(var(--gray-200));
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .button-outline:hover:not(:disabled) {
+    background: hsl(var(--gray-50));
+  }
+  .button-outline:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .button-outline.danger {
+    color: hsl(var(--danger));
+    border-color: hsl(var(--danger) / 0.35);
+  }
+  .button-outline.active {
+    background: hsl(var(--green-700));
+    color: white;
+    border-color: hsl(var(--green-700));
+  }
+
+  /* Selectable row (person/listing pickers) — a real card, unlike
+     .list-row below which is a dark-hero-only style with no padding,
+     no border, and near-invisible translucent-white text on a light
+     background. */
+  .select-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    padding: 12px 14px;
+    background: white;
+    border: 1px solid hsl(var(--gray-200));
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .select-row:hover {
+    background: hsl(var(--gray-50));
+  }
+  .select-row.selected {
+    background: hsl(var(--green-50));
+    border-color: hsl(var(--green-700));
   }
 
   /* ── Misc ──────────────────────────────────────────────── */

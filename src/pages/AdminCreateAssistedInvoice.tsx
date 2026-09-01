@@ -43,12 +43,11 @@ function PersonPicker({
             <li key={p.uid}>
               <button
                 onClick={() => onSelect(p.uid)}
-                className="list-row w-full text-left flex items-center justify-between"
-                style={{ background: selected === p.uid ? "var(--color-row-active, #f0f7f2)" : undefined, border: selected === p.uid ? "1px solid var(--color-accent, #0f5132)" : undefined }}
+                className={`select-row ${selected === p.uid ? "selected" : ""}`}
               >
                 <div>
                   <div className="font-semibold text-sm">{p.fullName}</div>
-                  <div style={{ fontSize: 12, color: "var(--color-muted)" }}>{p.phone || "—"} {p.province ? `· ${p.province}` : ""}</div>
+                  <div style={{ fontSize: 12, color: "hsl(var(--gray-500))" }}>{p.phone || "—"} {p.province ? `· ${p.province}` : ""}</div>
                 </div>
                 <span className="pill status-active">Identité vérifiée</span>
               </button>
@@ -150,11 +149,12 @@ export function AdminCreateAssistedInvoice() {
                     <li key={l.id}>
                       <button
                         onClick={() => { setListingId(l.id); setQuantityKg(""); }}
-                        className="list-row w-full text-left"
-                        style={{ background: listingId === l.id ? "var(--color-row-active, #f0f7f2)" : undefined }}
+                        className={`select-row ${listingId === l.id ? "selected" : ""}`}
                       >
-                        <div className="font-semibold text-sm">{l.commodity} — {l.quantityKg} kg disponibles</div>
-                        <div style={{ fontSize: 12, color: "var(--color-muted)" }}>{l.pricePerKgCdf.toLocaleString("fr-FR")} CDF/kg · {l.province ?? "—"}</div>
+                        <div>
+                          <div className="font-semibold text-sm">{l.commodity} — {l.quantityKg} kg disponibles</div>
+                          <div style={{ fontSize: 12, color: "hsl(var(--gray-500))" }}>{l.pricePerKgCdf.toLocaleString("fr-FR")} CDF/kg · {l.province ?? "—"}</div>
+                        </div>
                       </button>
                     </li>
                   ))}
@@ -203,8 +203,7 @@ export function AdminCreateAssistedInvoice() {
                   <button
                     key={c.key}
                     onClick={() => setConsentMethod(c.key)}
-                    className="button"
-                    style={consentMethod === c.key ? { background: "var(--color-accent, #0f5132)", color: "#fff" } : undefined}
+                    className={`button-outline ${consentMethod === c.key ? "active" : ""}`}
                   >
                     {c.icon} {c.label}
                   </button>
@@ -225,18 +224,19 @@ export function AdminCreateAssistedInvoice() {
           )}
 
           <div className="button-row" style={{ marginTop: 20 }}>
-            {step > 1 && <button onClick={() => setStep((s) => (s - 1) as Step)} className="button">Retour</button>}
+            {step > 1 && <button onClick={() => setStep((s) => (s - 1) as Step)} className="button-outline">Retour</button>}
             {step < 5 && (
               <button
                 onClick={() => setStep((s) => (s + 1) as Step)}
                 disabled={(step === 1 && !farmerId) || (step === 2 && !merchantId) || (step === 3 && !quantityValid)}
                 className="btn-primary"
+                style={{ height: 40 }}
               >
                 Continuer
               </button>
             )}
             {step === 5 && (
-              <button onClick={submit} disabled={!consentConfirmed || create.isPending} className="btn-primary">
+              <button onClick={submit} disabled={!consentConfirmed || create.isPending} className="btn-primary" style={{ height: 40 }}>
                 {create.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Créer la facture
               </button>
             )}
