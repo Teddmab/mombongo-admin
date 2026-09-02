@@ -265,12 +265,33 @@
     gap: 16px;
   }
 
+  /* .panel never had a real padding rule — every ADM-UI page assumed one
+     existed and relied on it, but nothing in this stylesheet ever gave a
+     plain .panel (no .section-header, no .admin-table) any inner spacing
+     at all; content sat flush against the card's edges. Default to 20px
+     padding, and opt back out to 0 for the two cases that manage their
+     own internal spacing: a .section-header (which has its own padding
+     and hands spacing to its siblings below) and an .admin-table (whose
+     cells have their own padding). */
   .panel {
     background: white;
     border: 1px solid hsl(var(--gray-200));
     border-radius: 16px;
     overflow: hidden;
     box-shadow: var(--shadow-card);
+    padding: 20px;
+  }
+  .panel:has(.section-header),
+  .panel:has(.admin-table) {
+    padding: 0;
+  }
+  /* A panel can have custom content before its first real .section-header
+     (e.g. a title row with a status pill) — .section-header ~ * only
+     reaches siblings *after* it, so that leading content would otherwise
+     be stranded with no padding at all once the panel's own padding is
+     reset to 0 above. */
+  .panel:has(.section-header) > *:first-child:not(.section-header) {
+    padding: 20px 20px 0;
   }
 
   .section-header {
@@ -279,6 +300,20 @@
     justify-content: space-between;
     padding: 16px 20px 12px;
     border-bottom: 1px solid hsl(var(--gray-100));
+  }
+  /* Everything after a .section-header inside the same panel gets the
+     panel's horizontal padding back, plus top padding on the first
+     sibling and bottom padding on the last — section-header itself
+     already supplies its own padding/border-bottom above this. */
+  .section-header ~ * {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .section-header ~ *:first-of-type {
+    padding-top: 16px;
+  }
+  .section-header ~ *:last-child {
+    padding-bottom: 20px;
   }
 
   .chart-shell {
