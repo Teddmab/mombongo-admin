@@ -23,17 +23,20 @@ const mockedFailures = vi.mocked(useFailedNotifications);
 const mockedRetry = vi.mocked(useRetryPartnerNotification);
 
 const API_ROW = {
-  id: "inv1", origin: "partner_api" as const, partnerId: "arom", farmerName: null, farmerNames: [], isCooperative: false, merchantName: null,
+  id: "inv1", origin: "partner_api" as const, partnerId: "arom", farmerName: null, farmerAvatarUrl: null, merchantAvatarUrl: null,
+  farmerNames: [], isCooperative: false, merchantName: null,
   amountUsd: 50, method: "mobile_money", status: "paid", createdAt: { seconds: 1723000000 } as never,
+  paidAt: { seconds: Math.floor(Date.now() / 1000) } as never, // "this month" relative to whenever the test actually runs
 };
 const HARVEST_ROW = {
-  id: "inv2", origin: "harvest_sale" as const, partnerId: null, farmerName: "Jean Kalonji", farmerNames: ["Jean Kalonji"], isCooperative: false, merchantName: "AROM Industries",
-  amountUsd: 100, method: "mobile_money", status: "pending", createdAt: { seconds: 1723000000 } as never,
+  id: "inv2", origin: "harvest_sale" as const, partnerId: null, farmerName: "Jean Kalonji", farmerAvatarUrl: null, merchantAvatarUrl: null,
+  farmerNames: ["Jean Kalonji"], isCooperative: false, merchantName: "AROM Industries",
+  amountUsd: 100, method: "mobile_money", status: "pending", createdAt: { seconds: 1723000000 } as never, paidAt: null,
 };
 const COOP_ROW = {
-  id: "inv3", origin: "admin_assisted" as const, partnerId: null, farmerName: "Jean Kalonji",
+  id: "inv3", origin: "admin_assisted" as const, partnerId: null, farmerName: "Jean Kalonji", farmerAvatarUrl: null, merchantAvatarUrl: null,
   farmerNames: ["Jean Kalonji (60 kg)", "Marie Tshisekedi (40 kg)"], isCooperative: true, merchantName: "AROM Industries",
-  amountUsd: 100, method: null, status: "pending", createdAt: { seconds: 1723000000 } as never,
+  amountUsd: 100, method: null, status: "failed", createdAt: { seconds: 1723000000 } as never, paidAt: null,
 };
 
 function renderList() {
@@ -76,10 +79,35 @@ describe("AdminPartnerInvoices list", () => {
     expect(screen.getByText(/créer une facture/i).closest("button")).toBeInTheDocument();
   });
 
+  it("computes KPI cards from real invoice data (pending count/amount, paid this month, failed)", () => {
+    mockedList.mockReturnValue({ data: [API_ROW, HARVEST_ROW, COOP_ROW], isLoading: false, error: null } as never);
+    renderList();
+    expect(screen.getByText("En attente de paiement").closest(".metric-card")).toHaveTextContent("1");
+    expect(screen.getByText("Payées ce mois").closest(".metric-card")).toHaveTextContent("1");
+    // "Échouées" also labels the status tab — the KPI card is the first occurrence (stats grid renders above the tabs)
+    expect(screen.getAllByText("Échouées")[0].closest(".metric-card")).toHaveTextContent("1");
+  });
+
+  it("filters by tab (En attente/Payées/Échouées)", () => {
+    mockedList.mockReturnValue({ data: [API_ROW, HARVEST_ROW, COOP_ROW], isLoading: false, error: null } as never);
+    renderList();
+    fireEvent.click(screen.getByRole("tab", { name: "Payées" }));
+    expect(screen.getByText("arom")).toBeInTheDocument();
+    expect(screen.queryByText("Jean Kalonji")).not.toBeInTheDocument();
+  });
+
+  it("filters by search text across farmer, merchant and invoice id", () => {
+    mockedList.mockReturnValue({ data: [API_ROW, HARVEST_ROW], isLoading: false, error: null } as never);
+    renderList();
+    fireEvent.change(screen.getByPlaceholderText(/agriculteur, commerçant ou numéro/i), { target: { value: "AROM" } });
+    expect(screen.getByText("Jean Kalonji")).toBeInTheDocument();
+    expect(screen.queryByText("arom")).not.toBeInTheDocument();
+  });
+
   it("filters by origin", () => {
     mockedList.mockReturnValue({ data: [API_ROW, HARVEST_ROW], isLoading: false, error: null } as never);
     renderList();
-    fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "harvest_sale" } });
+    fireEvent.change(screen.getByRole("combobox", { name: /^origine$/i }), { target: { value: "harvest_sale" } });
     expect(screen.queryByText("arom")).not.toBeInTheDocument();
     expect(screen.getByText("Jean Kalonji")).toBeInTheDocument();
   });
@@ -89,6 +117,20 @@ describe("AdminPartnerInvoices list", () => {
     renderList();
     expect(screen.getByText(/Jean Kalonji \(60 kg\), Marie Tshisekedi \(40 kg\)/)).toBeInTheDocument();
     expect(screen.getByText("Coopérative")).toBeInTheDocument();
+  });
+
+  it("opens a side detail panel on row click instead of navigating away", () => {
+    mockedList.mockReturnValue({ data: [HARVEST_ROW], isLoading: false, error: null } as never);
+    mockedDetail.mockReturnValue({
+      data: { ...HARVEST_ROW, externalInvoiceId: "inv2", reference: null, currency: "USD", testMode: false, providerRef: null, failedAt: null, adminAssisted: null },
+      isLoading: false, error: null,
+    } as never);
+    renderList();
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Jean Kalonji"));
+    expect(screen.getByRole("complementary")).toBeInTheDocument();
+    // still on the list route, not navigated to a separate page
+    expect(screen.getByText(/créer une facture/i)).toBeInTheDocument();
   });
 });
 
@@ -116,7 +158,7 @@ describe("AdminPartnerInvoiceDetail", () => {
 
   it("never shows the assistance trace for a real farmer self-service invoice", () => {
     mockedDetail.mockReturnValue({
-      data: { ...HARVEST_ROW, externalInvoiceId: "inv2", reference: null, currency: "USD", testMode: false, providerRef: null, paidAt: null, failedAt: null, adminAssisted: null },
+      data: { ...HARVEST_ROW, externalInvoiceId: "inv2", reference: null, currency: "USD", testMode: false, providerRef: null, failedAt: null, adminAssisted: null },
       isLoading: false, error: null,
     } as never);
     render(

@@ -10,6 +10,8 @@ export interface PartnerInvoiceRow {
   origin: InvoiceOrigin;
   partnerId: string | null;
   farmerName: string | null;
+  farmerAvatarUrl: string | null;
+  merchantAvatarUrl: string | null;
   /** All issuers — a single farmer's name, or every member of a cooperative when isCooperative is true. */
   farmerNames: string[];
   isCooperative: boolean;
@@ -18,19 +20,22 @@ export interface PartnerInvoiceRow {
   method: string | null;
   status: string;
   createdAt: Timestamp | null;
+  paidAt: Timestamp | null;
 }
+
+interface ResolvedUser { name: string; avatarUrl: string | null }
 
 /** farmers[] entries are {farmerId, contributedKg} — resolves each to a "Name (Xkg)" label for cooperative invoices. */
 function resolveFarmerNames(
   data: Record<string, unknown>,
-  names: Map<string, string>,
+  users: Map<string, ResolvedUser>,
 ): string[] {
   const farmers = data.farmers as { farmerId: string; contributedKg: number }[] | undefined;
   if (Array.isArray(farmers) && farmers.length > 0) {
-    return farmers.map((f) => `${names.get(f.farmerId) ?? f.farmerId} (${f.contributedKg} kg)`);
+    return farmers.map((f) => `${users.get(f.farmerId)?.name ?? f.farmerId} (${f.contributedKg} kg)`);
   }
   const farmerId = data.farmerId as string | undefined;
-  return farmerId ? [names.get(farmerId) ?? farmerId] : [];
+  return farmerId ? [users.get(farmerId)?.name ?? farmerId] : [];
 }
 
 export const ORIGIN_LABEL: Record<InvoiceOrigin, string> = {
@@ -39,13 +44,14 @@ export const ORIGIN_LABEL: Record<InvoiceOrigin, string> = {
   admin_assisted: "Créée avec assistance admin",
 };
 
-async function resolveNames(uids: (string | undefined)[]): Promise<Map<string, string>> {
+async function resolveUsers(uids: (string | undefined)[]): Promise<Map<string, ResolvedUser>> {
   const unique = Array.from(new Set(uids.filter((u): u is string => !!u)));
   const entries = await Promise.all(
     unique.map(async (uid) => {
       const snap = await getDoc(doc(db, "users", uid));
-      const name = snap.exists() ? ((snap.data().fullName as string) || (snap.data().displayName as string)) : null;
-      return [uid, name || uid] as const;
+      const data = snap.exists() ? snap.data() : null;
+      const name = data ? ((data.fullName as string) || (data.displayName as string)) : null;
+      return [uid, { name: name || uid, avatarUrl: (data?.avatarUrl as string) ?? null }] as const;
     }),
   );
   return new Map(entries);
@@ -59,21 +65,29 @@ export function usePartnerInvoices() {
       const docs = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
       const allFarmerIds = docs.flatMap(({ data }) =>
         Array.isArray(data.farmers) ? (data.farmers as { farmerId: string }[]).map((f) => f.farmerId) : [data.farmerId as string | undefined]);
-      const names = await resolveNames([...allFarmerIds, ...docs.map(({ data }) => data.merchantId as string | undefined)]);
+      const users = await resolveUsers([...allFarmerIds, ...docs.map(({ data }) => data.merchantId as string | undefined)]);
 
-      return docs.map(({ id, data }) => ({
-        id,
-        origin: (data.origin as InvoiceOrigin) ?? "partner_api",
-        partnerId: (data.partnerId as string) ?? null,
-        farmerName: data.farmerId ? (names.get(data.farmerId as string) ?? null) : null,
-        farmerNames: resolveFarmerNames(data, names),
-        isCooperative: !!data.isCooperative,
-        merchantName: data.merchantId ? (names.get(data.merchantId as string) ?? null) : null,
-        amountUsd: (data.amountUsd as number) ?? 0,
-        method: (data.method as string) ?? null,
-        status: (data.status as string) ?? "pending",
-        createdAt: (data.createdAt as Timestamp) ?? null,
-      } satisfies PartnerInvoiceRow));
+      return docs.map(({ id, data }) => {
+        const firstFarmerId = Array.isArray(data.farmers) && data.farmers.length > 0
+          ? (data.farmers[0] as { farmerId: string }).farmerId
+          : (data.farmerId as string | undefined);
+        return {
+          id,
+          origin: (data.origin as InvoiceOrigin) ?? "partner_api",
+          partnerId: (data.partnerId as string) ?? null,
+          farmerName: data.farmerId ? (users.get(data.farmerId as string)?.name ?? null) : null,
+          farmerAvatarUrl: firstFarmerId ? (users.get(firstFarmerId)?.avatarUrl ?? null) : null,
+          merchantAvatarUrl: data.merchantId ? (users.get(data.merchantId as string)?.avatarUrl ?? null) : null,
+          farmerNames: resolveFarmerNames(data, users),
+          isCooperative: !!data.isCooperative,
+          merchantName: data.merchantId ? (users.get(data.merchantId as string)?.name ?? null) : null,
+          amountUsd: (data.amountUsd as number) ?? 0,
+          method: (data.method as string) ?? null,
+          status: (data.status as string) ?? "pending",
+          createdAt: (data.createdAt as Timestamp) ?? null,
+          paidAt: (data.paidAt as Timestamp) ?? null,
+        } satisfies PartnerInvoiceRow;
+      });
     },
     staleTime: 30_000,
   });
@@ -85,7 +99,6 @@ export interface PartnerInvoiceDetail extends PartnerInvoiceRow {
   currency: string;
   testMode: boolean;
   providerRef: string | null;
-  paidAt: Timestamp | null;
   failedAt: Timestamp | null;
   adminAssisted: { actorName: string; consentMethod: string; consentAt: Timestamp; note: string | null } | null;
 }
@@ -101,30 +114,35 @@ export function usePartnerInvoiceDetail(id: string | undefined) {
       const data = snap.data();
 
       const farmerIds = Array.isArray(data.farmers) ? (data.farmers as { farmerId: string }[]).map((f) => f.farmerId) : [data.farmerId];
-      const names = await resolveNames([...farmerIds, data.merchantId, data.adminAssisted?.actorUid]);
+      const users = await resolveUsers([...farmerIds, data.merchantId, data.adminAssisted?.actorUid]);
+      const firstFarmerId = Array.isArray(data.farmers) && data.farmers.length > 0
+        ? (data.farmers[0] as { farmerId: string }).farmerId
+        : (data.farmerId as string | undefined);
 
       return {
         id: id!,
         origin: (data.origin as InvoiceOrigin) ?? "partner_api",
         partnerId: (data.partnerId as string) ?? null,
-        farmerName: data.farmerId ? (names.get(data.farmerId as string) ?? null) : null,
-        farmerNames: resolveFarmerNames(data, names),
+        farmerName: data.farmerId ? (users.get(data.farmerId as string)?.name ?? null) : null,
+        farmerAvatarUrl: firstFarmerId ? (users.get(firstFarmerId)?.avatarUrl ?? null) : null,
+        merchantAvatarUrl: data.merchantId ? (users.get(data.merchantId as string)?.avatarUrl ?? null) : null,
+        farmerNames: resolveFarmerNames(data, users),
         isCooperative: !!data.isCooperative,
-        merchantName: data.merchantId ? (names.get(data.merchantId as string) ?? null) : null,
+        merchantName: data.merchantId ? (users.get(data.merchantId as string)?.name ?? null) : null,
         amountUsd: (data.amountUsd as number) ?? 0,
         method: (data.method as string) ?? null,
         status: (data.status as string) ?? "pending",
         createdAt: (data.createdAt as Timestamp) ?? null,
+        paidAt: (data.paidAt as Timestamp) ?? null,
         externalInvoiceId: (data.externalInvoiceId as string) ?? id!,
         reference: (data.reference as string) ?? null,
         currency: (data.currency as string) ?? "USD",
         testMode: !!data.testMode,
         providerRef: (data.providerRef as string) ?? null,
-        paidAt: (data.paidAt as Timestamp) ?? null,
         failedAt: (data.failedAt as Timestamp) ?? null,
         adminAssisted: data.adminAssisted
           ? {
-              actorName: names.get(data.adminAssisted.actorUid as string) ?? data.adminAssisted.actorUid,
+              actorName: users.get(data.adminAssisted.actorUid as string)?.name ?? data.adminAssisted.actorUid,
               consentMethod: data.adminAssisted.consentMethod as string,
               consentAt: data.adminAssisted.consentAt as Timestamp,
               note: (data.adminAssisted.note as string) ?? null,

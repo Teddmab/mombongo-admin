@@ -16,23 +16,33 @@ export interface EligiblePerson {
   fullName: string;
   phone: string;
   province: string | null;
+  avatarUrl: string | null;
+  isActive: boolean;
   kycApproved: boolean;
 }
 
-async function fetchApprovedUsersByRole(role: "farmer" | "merchant"): Promise<EligiblePerson[]> {
+export interface EligiblePeopleResult {
+  eligible: EligiblePerson[];
+  /** Every user with this role, before the KYC-approved filter — lets the picker explain an empty/short list ("3 commerçants, aucun avec KYC approuvé") instead of looking broken. */
+  totalCount: number;
+}
+
+async function fetchApprovedUsersByRole(role: "farmer" | "merchant"): Promise<EligiblePeopleResult> {
   const snap = await getDocs(query(collection(db, "users"), where("role", "==", role), limit(200)));
-  return snap.docs
-    .map((d) => {
-      const data = d.data();
-      return {
-        uid: d.id,
-        fullName: (data.fullName as string) || (data.displayName as string) || "—",
-        phone: (data.phone as string) || "",
-        province: (data.province as string) ?? null,
-        kycApproved: data.kycStatus === "approved",
-      } satisfies EligiblePerson;
-    })
-    .filter((p) => p.kycApproved); // ineligible people are simply not offered — the CF re-checks this server-side regardless
+  const all = snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      uid: d.id,
+      fullName: (data.fullName as string) || (data.displayName as string) || "—",
+      phone: (data.phone as string) || "",
+      province: (data.province as string) ?? null,
+      avatarUrl: (data.avatarUrl as string) ?? null,
+      isActive: data.isActive !== false,
+      kycApproved: data.kycStatus === "approved",
+    } satisfies EligiblePerson;
+  });
+  // Ineligible people are simply not offered — the CF re-checks this server-side regardless.
+  return { eligible: all.filter((p) => p.kycApproved), totalCount: all.length };
 }
 
 export function useEligibleFarmers() {
