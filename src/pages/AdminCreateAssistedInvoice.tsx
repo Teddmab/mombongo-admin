@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Phone, UserCheck, Users2, Loader2, CheckCircle2, Trash2 } from "lucide-react";
+import { Phone, UserCheck, Users2, Loader2, CheckCircle2, Trash2, Search, User, Store, ShoppingBag, DollarSign, ShieldCheck } from "lucide-react";
 import { Combobox } from "@/components/Combobox";
 import { CreatePersonModal } from "@/components/CreatePersonModal";
+import { Avatar } from "@/components/Avatar";
 import {
   useEligibleFarmers, useEligibleMerchants, useFarmerListings, useExchangeRatePreview,
   useCreateAssistedInvoice, type EligiblePerson, type ConsentMethod,
@@ -24,28 +25,77 @@ interface FarmerRow {
   contributedKg: number | "";
 }
 
-function PersonPicker({
-  people, isLoading, selected, onSelect, placeholder, onCreateNew, createLabel,
+const PAGE_SIZE = 3;
+
+/** Always-visible, radio-selectable card list — matches the ADM-UI-05 reference design (08-create-assisted-invoice.png) more closely than a search-to-reveal combobox, while still working with a short, KYC-filtered candidate list. */
+function PersonCardList({
+  people, totalCount, isLoading, selected, onSelect, searchPlaceholder, onCreateNew, createLabel, emptyRoleLabel,
 }: {
-  people: EligiblePerson[]; isLoading: boolean; selected: string | null; onSelect: (uid: string) => void;
-  placeholder: string; onCreateNew?: () => void; createLabel?: string;
+  people: EligiblePerson[]; totalCount: number; isLoading: boolean; selected: string | null; onSelect: (uid: string) => void;
+  searchPlaceholder: string; onCreateNew?: () => void; createLabel?: string; emptyRoleLabel: string;
 }) {
+  const [query, setQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const q = query.trim().toLowerCase();
+  const filtered = !q ? people : people.filter((p) => p.fullName.toLowerCase().includes(q) || p.phone.includes(q));
+  const shown = filtered.slice(0, visibleCount);
+
   return (
-    <Combobox
-      options={people.map((p) => ({
-        id: p.uid,
-        label: p.fullName,
-        sublabel: `${p.phone || "—"}${p.province ? ` · ${p.province}` : ""}`,
-        badge: "Identité vérifiée",
-      }))}
-      isLoading={isLoading}
-      selectedId={selected}
-      onSelect={onSelect}
-      placeholder={placeholder}
-      emptyLabel="Aucun compte vérifié ne correspond."
-      onCreateNew={onCreateNew}
-      createLabel={createLabel}
-    />
+    <div>
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "hsl(var(--gray-400))" }} />
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setVisibleCount(PAGE_SIZE); }}
+          placeholder={searchPlaceholder}
+          className="form-input"
+          style={{ paddingLeft: 34, width: "100%" }}
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">{[1, 2, 3].map((n) => <div key={n} style={{ height: 64 }} className="bg-gray-100 rounded-xl animate-pulse" />)}</div>
+      ) : shown.length === 0 ? (
+        <div className="hint-box" style={{ fontSize: 13 }}>
+          {totalCount === 0
+            ? `Aucun ${emptyRoleLabel} enregistré ne correspond.`
+            : `${totalCount} ${emptyRoleLabel}${totalCount > 1 ? "s" : ""} enregistré${totalCount > 1 ? "s" : ""}, mais aucun avec une identité vérifiée (KYC approuvé).`}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {shown.map((p) => (
+            <label key={p.uid} className={`select-row ${selected === p.uid ? "selected" : ""}`}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                <input type="radio" checked={selected === p.uid} onChange={() => onSelect(p.uid)} style={{ flexShrink: 0 }} />
+                <Avatar name={p.fullName} url={p.avatarUrl} />
+                <div style={{ minWidth: 0 }}>
+                  <div className="font-semibold text-sm">{p.fullName}</div>
+                  <div style={{ fontSize: 12, color: "hsl(var(--gray-500))" }}>
+                    {p.phone || "—"}{p.province ? ` · ${p.province}` : ""}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <span className="pill status-active">Identité vérifiée</span>
+                <span className={`pill ${p.isActive ? "status-active" : "status-blocked"}`}>{p.isActive ? "Actif" : "Désactivé"}</span>
+              </div>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {filtered.length > visibleCount && (
+        <button type="button" onClick={() => setVisibleCount((v) => v + PAGE_SIZE)} className="button-outline" style={{ marginTop: 8, width: "100%", justifyContent: "center" }}>
+          Voir plus de résultats
+        </button>
+      )}
+      {onCreateNew && (
+        <button type="button" onClick={onCreateNew} className="button-outline" style={{ marginTop: 8, width: "100%", justifyContent: "center", color: "hsl(var(--green-700))", fontWeight: 600 }}>
+          {createLabel}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -68,6 +118,28 @@ function ListingPicker({
   );
 }
 
+function SummaryRow({ icon, iconColor, iconBg, label, value, last }: {
+  icon: React.ReactNode; iconColor: string; iconBg: string; label: string; value: string; last?: boolean;
+}) {
+  return (
+    <div
+      className="flex items-start gap-3"
+      style={{ padding: "12px 0", borderBottom: last ? undefined : "1px solid hsl(var(--gray-50))" }}
+    >
+      <div style={{
+        width: 32, height: 32, borderRadius: 10, flexShrink: 0, background: iconBg, color: iconColor,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {icon}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <p className="text-[12px] text-gray-500">{label}</p>
+        <p className="text-[13px] font-semibold truncate">{value}</p>
+      </div>
+    </div>
+  );
+}
+
 export function AdminCreateAssistedInvoice() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>(1);
@@ -87,10 +159,14 @@ export function AdminCreateAssistedInvoice() {
   const [createdFarmers, setCreatedFarmers] = useState<EligiblePerson[]>([]);
   const [createdMerchants, setCreatedMerchants] = useState<EligiblePerson[]>([]);
 
-  const { data: fetchedFarmers = [], isLoading: farmersLoading } = useEligibleFarmers();
-  const { data: fetchedMerchants = [], isLoading: merchantsLoading } = useEligibleMerchants();
+  const { data: farmersResult, isLoading: farmersLoading } = useEligibleFarmers();
+  const { data: merchantsResult, isLoading: merchantsLoading } = useEligibleMerchants();
+  const fetchedFarmers = farmersResult?.eligible ?? [];
+  const fetchedMerchants = merchantsResult?.eligible ?? [];
   const farmers = [...fetchedFarmers, ...createdFarmers.filter((c) => !fetchedFarmers.some((f) => f.uid === c.uid))];
   const merchants = [...fetchedMerchants, ...createdMerchants.filter((c) => !fetchedMerchants.some((m) => m.uid === c.uid))];
+  const farmersTotalCount = (farmersResult?.totalCount ?? 0) + createdFarmers.length;
+  const merchantsTotalCount = (merchantsResult?.totalCount ?? 0) + createdMerchants.length;
 
   const filledFarmerRows = farmerRows.filter((r): r is FarmerRow & { farmerId: string } => !!r.farmerId);
   const isCooperative = filledFarmerRows.length > 1;
@@ -130,7 +206,7 @@ export function AdminCreateAssistedInvoice() {
 
   function handlePersonCreated(person: { uid: string; fullName: string }) {
     if (!createModal) return;
-    const newPerson: EligiblePerson = { uid: person.uid, fullName: person.fullName, phone: "", province: null, kycApproved: true };
+    const newPerson: EligiblePerson = { uid: person.uid, fullName: person.fullName, phone: "", province: null, avatarUrl: null, isActive: true, kycApproved: true };
     if (createModal.role === "farmer") {
       setCreatedFarmers((prev) => [...prev, newPerson]);
       if (createModal.forRowKey) updateFarmerRow(createModal.forRowKey, { farmerId: person.uid });
@@ -198,23 +274,26 @@ export function AdminCreateAssistedInvoice() {
                   (f) => f.uid === row.farmerId || !farmerRows.some((r) => r.key !== row.key && r.farmerId === f.uid),
                 );
                 return (
-                  <div key={row.key} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "flex-start" }}>
-                    <div style={{ flex: 1 }}>
-                      <PersonPicker
-                        people={optionsForRow}
-                        isLoading={farmersLoading}
-                        selected={row.farmerId}
-                        onSelect={(uid) => updateFarmerRow(row.key, { farmerId: uid })}
-                        placeholder="Rechercher par nom ou téléphone"
-                        onCreateNew={() => setCreateModal({ role: "farmer", forRowKey: row.key })}
-                        createLabel="+ Créer un nouvel agriculteur"
-                      />
-                    </div>
+                  <div key={row.key} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: farmerRows.length > 1 ? "1px solid hsl(var(--gray-100))" : undefined }}>
                     {farmerRows.length > 1 && (
-                      <button type="button" onClick={() => removeFarmerRow(row.key)} className="button-outline danger" style={{ height: 40 }} aria-label={`Retirer l'agriculteur ${i + 1}`}>
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                        <p className="muted text-sm" style={{ fontWeight: 600 }}>Agriculteur {i + 1}</p>
+                        <button type="button" onClick={() => removeFarmerRow(row.key)} className="button-outline danger" style={{ height: 28, padding: "0 10px" }}>
+                          <Trash2 size={13} /> Retirer
+                        </button>
+                      </div>
                     )}
+                    <PersonCardList
+                      people={optionsForRow}
+                      totalCount={farmersTotalCount}
+                      isLoading={farmersLoading}
+                      selected={row.farmerId}
+                      onSelect={(uid) => updateFarmerRow(row.key, { farmerId: uid })}
+                      searchPlaceholder="Rechercher par nom ou téléphone"
+                      onCreateNew={() => setCreateModal({ role: "farmer", forRowKey: row.key })}
+                      createLabel="+ Créer un nouvel agriculteur"
+                      emptyRoleLabel="agriculteur"
+                    />
                   </div>
                 );
               })}
@@ -232,14 +311,16 @@ export function AdminCreateAssistedInvoice() {
           {step === 2 && (
             <>
               <div className="section-header"><h3>2. Sélectionner le commerçant</h3></div>
-              <PersonPicker
+              <PersonCardList
                 people={merchants}
+                totalCount={merchantsTotalCount}
                 isLoading={merchantsLoading}
                 selected={merchantId}
                 onSelect={setMerchantId}
-                placeholder="Rechercher par nom ou téléphone"
+                searchPlaceholder="Rechercher par nom ou téléphone"
                 onCreateNew={() => setCreateModal({ role: "merchant" })}
                 createLabel="+ Créer un nouveau commerçant"
+                emptyRoleLabel="commerçant"
               />
             </>
           )}
@@ -388,35 +469,43 @@ export function AdminCreateAssistedInvoice() {
 
         <aside className="panel">
           <div className="section-header"><h3>Résumé de la facture</h3></div>
-          <dl className="space-y-0">
-            <div className="py-2 border-b border-gray-50">
-              <dt className="text-[12px] text-gray-500">{isCooperative ? "Agriculteurs (émetteurs)" : "Agriculteur (émetteur)"}</dt>
-              <dd className="text-[13px] font-semibold">
-                {filledFarmerRows.length === 0
-                  ? "À sélectionner"
-                  : filledFarmerRows.map((r) => {
-                      const p = farmers.find((f) => f.uid === r.farmerId);
-                      const kg = typeof r.contributedKg === "number" ? ` (${r.contributedKg} kg)` : "";
-                      return `${p?.fullName ?? "—"}${kg}`;
-                    }).join(", ")}
-              </dd>
+          <div style={{ padding: "0 20px 20px" }}>
+            <SummaryRow
+              icon={<User size={16} />} iconColor="hsl(var(--green-700))" iconBg="hsl(var(--green-100))"
+              label={isCooperative ? "Agriculteurs (émetteurs)" : "Agriculteur (émetteur)"}
+              value={filledFarmerRows.length === 0
+                ? "À sélectionner"
+                : filledFarmerRows.map((r) => {
+                    const p = farmers.find((f) => f.uid === r.farmerId);
+                    const kg = typeof r.contributedKg === "number" ? ` (${r.contributedKg} kg)` : "";
+                    return `${p?.fullName ?? "—"}${kg}`;
+                  }).join(", ")}
+            />
+            <SummaryRow
+              icon={<Store size={16} />} iconColor="hsl(var(--gray-700))" iconBg="hsl(var(--gray-100))"
+              label="Commerçant (acheteur)" value={merchant?.fullName ?? "À sélectionner"}
+            />
+            <SummaryRow
+              icon={<ShoppingBag size={16} />} iconColor="hsl(var(--info))" iconBg="hsl(var(--info) / 14%)"
+              label="Produit" value={commodityLabel ? `${commodityLabel} · ${totalKg || "—"} kg` : "À sélectionner"}
+            />
+            <SummaryRow
+              icon={<DollarSign size={16} />} iconColor="hsl(var(--amber-700))" iconBg="hsl(var(--amber-100))"
+              label="Total de la facture" value={previewTotalUsd != null ? `${previewTotalUsd} $` : "—"} last
+            />
+          </div>
+          <div style={{ padding: "0 20px 20px" }}>
+            <p className="muted" style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, marginBottom: 6 }}>Source</p>
+            <p className="pill status-active" style={{ display: "inline-block" }}>Créée avec assistance admin</p>
+          </div>
+          <div style={{ padding: "0 20px 20px" }}>
+            <div className="hint-box" style={{ fontSize: 12, display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <ShieldCheck size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span>
+                <strong>Trace d'audit</strong><br />
+                Cette facture sera enregistrée avec les détails de votre intervention et de l'accord obtenu.
+              </span>
             </div>
-            <div className="py-2 border-b border-gray-50">
-              <dt className="text-[12px] text-gray-500">Commerçant (acheteur)</dt>
-              <dd className="text-[13px] font-semibold">{merchant?.fullName ?? "À sélectionner"}</dd>
-            </div>
-            <div className="py-2 border-b border-gray-50">
-              <dt className="text-[12px] text-gray-500">Produit</dt>
-              <dd className="text-[13px] font-semibold">{commodityLabel ? `${commodityLabel} · ${totalKg || "—"} kg` : "À sélectionner"}</dd>
-            </div>
-            <div className="py-2">
-              <dt className="text-[12px] text-gray-500">Total de la facture</dt>
-              <dd className="text-[13px] font-semibold">{previewTotalUsd != null ? `${previewTotalUsd} $` : "—"}</dd>
-            </div>
-          </dl>
-          <p className="pill" style={{ marginTop: 8, display: "inline-block" }}>Créée avec assistance admin</p>
-          <div className="hint-box" style={{ marginTop: 16, fontSize: 12 }}>
-            Cette facture sera enregistrée avec les détails de votre intervention et de l'accord obtenu.
           </div>
         </aside>
       </div>

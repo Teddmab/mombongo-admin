@@ -33,21 +33,25 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-const FARMER = { uid: "farmer1", fullName: "Jean Kalonji", phone: "+243810000000", province: "Nord-Kivu", kycApproved: true };
-const MERCHANT = { uid: "merchant1", fullName: "AROM Industries", phone: "+243820000000", province: "Kinshasa", kycApproved: true };
+const FARMER = { uid: "farmer1", fullName: "Jean Kalonji", phone: "+243810000000", province: "Nord-Kivu", avatarUrl: null, isActive: true, kycApproved: true };
+const FARMER2 = { uid: "farmer2", fullName: "Marie Tshisekedi", phone: "+243830000000", province: "Kasaï", avatarUrl: null, isActive: true, kycApproved: true };
+const MERCHANT = { uid: "merchant1", fullName: "AROM Industries", phone: "+243820000000", province: "Kinshasa", avatarUrl: null, isActive: true, kycApproved: true };
 const LISTING = { id: "listing1", commodity: "Ananas", quantityKg: 500, pricePerKgCdf: 800, province: "Nord-Kivu" };
 
 function renderWizard() {
   return render(<MemoryRouter><AdminCreateAssistedInvoice /></MemoryRouter>);
 }
 
-/** The combobox only renders its option list once opened (focused) — mirrors real user interaction, not the old always-visible list. Selection fires on mousedown (not click), matching the component's real event handler. */
-function selectFromCombobox(optionText: string) {
+/** Farmer/merchant pickers are an always-visible radio card list — select by clicking the radio whose wrapping <label> contains the person's name. With a cooperative's several farmer rows, the same candidate can appear in more than one row's list until selected somewhere, so pick by occurrence (default: the only/first one). */
+function selectPerson(name: string, occurrence = 0) {
+  fireEvent.click(screen.getAllByRole("radio", { name: new RegExp(name, "i") })[occurrence]);
+}
+
+/** The listing picker (step 3, listing mode) is still a real combobox: closed until focused, selection fires on mousedown. */
+function selectFromListingCombobox(optionText: string) {
   fireEvent.focus(screen.getByRole("combobox"));
   fireEvent.mouseDown(screen.getByText(optionText));
 }
-
-const FARMER2 = { uid: "farmer2", fullName: "Marie Tshisekedi", phone: "+243830000000", province: "Kasaï", kycApproved: true };
 
 describe("AdminCreateAssistedInvoice wizard", () => {
   const mutateAsync = vi.fn();
@@ -56,8 +60,8 @@ describe("AdminCreateAssistedInvoice wizard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mutateAsync.mockResolvedValue({ invoiceId: "inv1", amountUsd: 100 });
-    mockedFarmers.mockReturnValue({ data: [FARMER, FARMER2], isLoading: false } as never);
-    mockedMerchants.mockReturnValue({ data: [MERCHANT], isLoading: false } as never);
+    mockedFarmers.mockReturnValue({ data: { eligible: [FARMER, FARMER2], totalCount: 2 }, isLoading: false } as never);
+    mockedMerchants.mockReturnValue({ data: { eligible: [MERCHANT], totalCount: 3 }, isLoading: false } as never);
     mockedListings.mockReturnValue({ data: [LISTING], isLoading: false } as never);
     mockedRate.mockReturnValue({ data: 2800 } as never);
     mockedCreate.mockReturnValue({ mutateAsync, isPending: false, isError: false, error: null } as never);
@@ -69,38 +73,37 @@ describe("AdminCreateAssistedInvoice wizard", () => {
     expect(screen.getByText("Continuer")).toBeDisabled();
   });
 
-  it("is a real combobox — no options are visible until the input is opened", () => {
+  it("shows every eligible farmer as an always-visible card, no click-to-open needed", () => {
     renderWizard();
-    expect(screen.queryByText("Jean Kalonji")).not.toBeInTheDocument();
-    fireEvent.focus(screen.getByRole("combobox"));
     expect(screen.getByText("Jean Kalonji")).toBeInTheDocument();
+    expect(screen.getByText("Marie Tshisekedi")).toBeInTheDocument();
   });
 
-  it("filters options as you type and collapses back to the selected label after choosing one", () => {
+  it("filters cards by search text", () => {
     renderWizard();
-    const input = screen.getByRole("combobox") as HTMLInputElement;
-    fireEvent.focus(input);
-    fireEvent.change(input, { target: { value: "zzz-no-match" } });
+    fireEvent.change(screen.getByPlaceholderText(/rechercher par nom ou téléphone/i), { target: { value: "marie" } });
     expect(screen.queryByText("Jean Kalonji")).not.toBeInTheDocument();
-    expect(screen.getByText(/aucun compte vérifié/i)).toBeInTheDocument();
+    expect(screen.getByText("Marie Tshisekedi")).toBeInTheDocument();
+  });
 
-    fireEvent.change(input, { target: { value: "jean" } });
-    fireEvent.mouseDown(screen.getByText("Jean Kalonji"));
-
-    expect(input.value).toBe("Jean Kalonji");
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  it("explains an empty picker instead of looking broken when nobody has approved KYC yet", () => {
+    mockedMerchants.mockReturnValue({ data: { eligible: [], totalCount: 3 }, isLoading: false } as never);
+    renderWizard();
+    selectPerson("Jean Kalonji");
+    fireEvent.click(screen.getByText("Continuer"));
+    expect(screen.getByText(/3 commerçants enregistrés, mais aucun avec une identité vérifiée/i)).toBeInTheDocument();
   });
 
   it("walks through all 5 steps and submits with consent required", async () => {
     renderWizard();
 
-    selectFromCombobox("Jean Kalonji");
+    selectPerson("Jean Kalonji");
     fireEvent.click(screen.getByText("Continuer"));
 
-    selectFromCombobox("AROM Industries");
+    selectPerson("AROM Industries");
     fireEvent.click(screen.getByText("Continuer"));
 
-    selectFromCombobox("Ananas — 500 kg disponibles");
+    selectFromListingCombobox("Ananas — 500 kg disponibles");
     fireEvent.change(screen.getByLabelText(/quantité/i), { target: { value: "100" } });
     fireEvent.click(screen.getByText("Continuer"));
 
@@ -126,14 +129,14 @@ describe("AdminCreateAssistedInvoice wizard", () => {
   it("supports a cooperative of several farmers pooling a harvest at an ad-hoc price", async () => {
     renderWizard();
 
-    selectFromCombobox("Jean Kalonji");
+    selectPerson("Jean Kalonji");
     fireEvent.click(screen.getByText("+ Ajouter un agriculteur (coopérative)"));
-    const comboboxes = screen.getAllByRole("combobox");
-    fireEvent.focus(comboboxes[1]);
-    fireEvent.mouseDown(screen.getByText("Marie Tshisekedi"));
+    // Jean is now excluded from row 2's own list (already taken by row 1), so Marie is
+    // the second occurrence overall: row 1 still offers her too, row 2 only offers her.
+    selectPerson("Marie Tshisekedi", 1);
     fireEvent.click(screen.getByText("Continuer"));
 
-    selectFromCombobox("AROM Industries");
+    selectPerson("AROM Industries");
     fireEvent.click(screen.getByText("Continuer"));
 
     // Cooperative mode is forced ad-hoc — no listing toggle, one shared price + a quantity field per farmer
@@ -157,12 +160,11 @@ describe("AdminCreateAssistedInvoice wizard", () => {
     expect(call.listingId).toBeUndefined();
   });
 
-  it("creates a farmer inline from the combobox when they aren't listed yet", async () => {
+  it("creates a farmer inline when they aren't listed yet", async () => {
     createPersonMutateAsync.mockResolvedValue({ uid: "new-farmer-1", isNew: true, fullName: "Nouveau Agriculteur" });
     renderWizard();
 
-    fireEvent.focus(screen.getByRole("combobox"));
-    fireEvent.mouseDown(screen.getByText("+ Créer un nouvel agriculteur"));
+    fireEvent.click(screen.getByText("+ Créer un nouvel agriculteur"));
 
     fireEvent.change(screen.getByLabelText(/nom complet/i), { target: { value: "Nouveau Agriculteur" } });
     fireEvent.change(screen.getByLabelText(/téléphone/i), { target: { value: "+243800000001" } });
@@ -170,17 +172,17 @@ describe("AdminCreateAssistedInvoice wizard", () => {
 
     await waitFor(() => expect(createPersonMutateAsync).toHaveBeenCalled());
     expect(createPersonMutateAsync.mock.calls[0][0]).toMatchObject({ role: "farmer", fullName: "Nouveau Agriculteur", phone: "+243800000001" });
-    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue("Nouveau Agriculteur"));
+    await waitFor(() => expect(screen.getByRole("radio", { name: /Nouveau Agriculteur/i })).toBeChecked());
     expect(screen.getByText("Continuer")).not.toBeDisabled();
   });
 
   it("blocks advancing past the listing step when quantity exceeds what's available", () => {
     renderWizard();
-    selectFromCombobox("Jean Kalonji");
+    selectPerson("Jean Kalonji");
     fireEvent.click(screen.getByText("Continuer"));
-    selectFromCombobox("AROM Industries");
+    selectPerson("AROM Industries");
     fireEvent.click(screen.getByText("Continuer"));
-    selectFromCombobox("Ananas — 500 kg disponibles");
+    selectFromListingCombobox("Ananas — 500 kg disponibles");
     fireEvent.change(screen.getByLabelText(/quantité/i), { target: { value: "10000" } });
     expect(screen.getByText("Continuer")).toBeDisabled();
   });
@@ -188,11 +190,11 @@ describe("AdminCreateAssistedInvoice wizard", () => {
   it("shows a server error message from the CF without pretending it succeeded", async () => {
     mockedCreate.mockReturnValue({ mutateAsync, isPending: false, isError: true, error: new Error("L'agriculteur doit avoir un KYC approuvé") } as never);
     renderWizard();
-    selectFromCombobox("Jean Kalonji");
+    selectPerson("Jean Kalonji");
     fireEvent.click(screen.getByText("Continuer"));
-    selectFromCombobox("AROM Industries");
+    selectPerson("AROM Industries");
     fireEvent.click(screen.getByText("Continuer"));
-    selectFromCombobox("Ananas — 500 kg disponibles");
+    selectFromListingCombobox("Ananas — 500 kg disponibles");
     fireEvent.change(screen.getByLabelText(/quantité/i), { target: { value: "100" } });
     fireEvent.click(screen.getByText("Continuer"));
     fireEvent.click(screen.getByText("Continuer"));
