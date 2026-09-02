@@ -22,6 +22,7 @@ export interface KycQueueItem {
   fullName: string;
   phone: string;
   role: string;
+  province: string | null;
   status: KycStatus;
   submittedAt: Timestamp | null;
   reviewedAt: Timestamp | null;
@@ -46,6 +47,7 @@ export function useKycSubmissions() {
             fullName: (user.fullName as string) || (user.displayName as string) || "—",
             phone: (user.phone as string) || "",
             role: (user.role as string) || "—",
+            province: (user.province as string) ?? null,
             status: (sub.status as KycStatus) ?? "pending",
             submittedAt: (sub.submittedAt as Timestamp) ?? null,
             reviewedAt: (sub.reviewedAt as Timestamp) ?? null,
@@ -76,10 +78,13 @@ export interface KycSubmissionDetail {
   role: string;
   province: string | null;
   documentType: string;
+  /** submitKycDocuments accepts 1 or 2 photos for any document type — real count, not a guess at "recto+verso". */
+  documentPhotoCount: number;
   status: KycStatus;
   submittedAt: Timestamp | null;
   reviewedAt: Timestamp | null;
   reviewedBy: string | null;
+  reviewerName: string | null;
   rejectionReason: string | null;
 }
 
@@ -94,6 +99,9 @@ export function useKycSubmissionDetail(uid: string | undefined) {
       if (!subSnap.exists()) return null;
       const sub = subSnap.data();
       const user = userSnap.data() ?? {};
+      const reviewedBy = (sub.reviewedBy as string) ?? null;
+      const reviewerSnap = reviewedBy ? await getDoc(doc(db, "users", reviewedBy)) : null;
+      const reviewerData = reviewerSnap?.data();
       return {
         uid: uid!,
         fullName: (user.fullName as string) || (user.displayName as string) || "—",
@@ -101,10 +109,12 @@ export function useKycSubmissionDetail(uid: string | undefined) {
         role: (user.role as string) || "—",
         province: (user.province as string) ?? null,
         documentType: (sub.documentType as string) ?? "—",
+        documentPhotoCount: Array.isArray(sub.photoUrls) ? sub.photoUrls.length : 0,
         status: (sub.status as KycStatus) ?? "pending",
         submittedAt: (sub.submittedAt as Timestamp) ?? null,
         reviewedAt: (sub.reviewedAt as Timestamp) ?? null,
-        reviewedBy: (sub.reviewedBy as string) ?? null,
+        reviewedBy,
+        reviewerName: reviewerData ? ((reviewerData.fullName as string) || (reviewerData.displayName as string) || reviewedBy) : null,
         rejectionReason: (sub.rejectionReason as string) ?? null,
       } satisfies KycSubmissionDetail;
     },
@@ -134,7 +144,10 @@ export function useReviewKyc() {
       return (await fn(payload)).data;
     },
     onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ["admin-kyc-queue"] });
+      // Was "admin-kyc-queue" — no query anywhere uses that key, so the
+      // queue never actually refreshed after a decision (it just sat until
+      // its own 15s staleTime happened to expire).
+      qc.invalidateQueries({ queryKey: ["admin-kyc-submissions"] });
       qc.invalidateQueries({ queryKey: ["admin-kyc-detail", variables.uid] });
       qc.invalidateQueries({ queryKey: ["admin-farmers-v2"] });
     },
