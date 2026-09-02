@@ -564,6 +564,39 @@
     color: hsl(var(--gray-700));
   }
 
+  /* ── Transactions: clickable KPI cards, icon badges, attention rows ── */
+  .metric-card.clickable {
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .metric-card.clickable:hover {
+    border-color: hsl(var(--green-700) / 0.4);
+  }
+  .metric-card.clickable.active {
+    border-color: hsl(var(--green-700));
+    box-shadow: 0 0 0 3px hsl(var(--green-700) / 0.1);
+  }
+
+  .metric-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+  .metric-icon.tone-green { background: hsl(var(--green-50)); color: hsl(var(--green-700)); }
+  .metric-icon.tone-amber { background: hsl(var(--amber-50)); color: hsl(32 92% 30%); }
+  .metric-icon.tone-danger { background: hsl(0 84% 95%); color: hsl(0 72% 38%); }
+
+  .admin-table tbody tr.attention-row,
+  .admin-table tbody tr.attention-row:hover {
+    background: hsl(var(--amber-50));
+  }
+
   /* ── AdminShell layout (AdminSidebar / AdminShell components) ── */
   .admin-shell {
     display: flex;
