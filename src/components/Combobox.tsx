@@ -14,6 +14,9 @@ interface ComboboxProps {
   onSelect: (id: string) => void;
   placeholder: string;
   emptyLabel?: string;
+  /** Pinned row at the bottom of the listbox (e.g. "+ Créer un nouvel agriculteur") for when the person being searched for isn't listed yet. */
+  onCreateNew?: () => void;
+  createLabel?: string;
 }
 
 /**
@@ -22,7 +25,7 @@ interface ComboboxProps {
  * Selecting an option collapses the dropdown and shows the chosen label
  * in the input; typing again reopens search over the full option set.
  */
-export function Combobox({ options, isLoading, selectedId, onSelect, placeholder, emptyLabel = "Aucun résultat." }: ComboboxProps) {
+export function Combobox({ options, isLoading, selectedId, onSelect, placeholder, emptyLabel = "Aucun résultat.", onCreateNew, createLabel = "+ Créer un nouveau compte" }: ComboboxProps) {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
@@ -43,6 +46,12 @@ export function Combobox({ options, isLoading, selectedId, onSelect, placeholder
     onSelect(option.id);
     setQuery("");
     setIsOpen(false);
+  }
+
+  function handleCreateNew() {
+    setQuery("");
+    setIsOpen(false);
+    onCreateNew?.();
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -113,6 +122,18 @@ export function Combobox({ options, isLoading, selectedId, onSelect, placeholder
                 </button>
               </li>
             ))
+          )}
+          {onCreateNew && (
+            <li role="option" aria-selected={false} style={{ borderTop: filtered.length > 0 || isLoading ? "1px solid hsl(var(--gray-100))" : undefined, marginTop: 4, paddingTop: 4 }}>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); handleCreateNew(); }}
+                className="select-row"
+                style={{ color: "hsl(var(--green-700))", fontWeight: 600 }}
+              >
+                {createLabel}
+              </button>
+            </li>
           )}
         </ul>
       )}

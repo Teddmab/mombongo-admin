@@ -87,12 +87,19 @@ export function useExchangeRatePreview() {
 
 export type ConsentMethod = "phone" | "in_person" | "field_agent";
 
+export interface FarmerContribution {
+  farmerId: string;
+  contributedKg: number;
+}
+
 export interface CreateAssistedInvoiceInput {
   clientRequestId: string;
-  farmerId: string;
+  farmers: FarmerContribution[];
   merchantId: string;
-  listingId: string;
-  quantityKg: number;
+  /** Only valid with a single farmer — omit for a cooperative, or a listing-less sale, and supply commodity/pricePerKgCdf instead. */
+  listingId?: string;
+  commodity?: string;
+  pricePerKgCdf?: number;
   consentMethod: ConsentMethod;
   consentAt: string;
   note?: string;
@@ -104,6 +111,33 @@ export function useCreateAssistedInvoice() {
       const fn = httpsCallable<CreateAssistedInvoiceInput, { invoiceId: string; amountUsd: number }>(
         functions, "adminCreateAssistedInvoice",
       );
+      return (await fn(payload)).data;
+    },
+  });
+}
+
+export interface AdminCreatePersonInput {
+  role: "farmer" | "merchant";
+  fullName: string;
+  phone: string;
+  province?: string;
+  businessType?: string;
+  consentMethod: ConsentMethod;
+  consentAt: string;
+  note?: string;
+}
+
+export interface AdminCreatePersonResult {
+  uid: string;
+  isNew: boolean;
+  fullName: string;
+}
+
+/** For the "pas encore sur la plateforme" case in the assisted-invoice wizard — creates a real, admin-attested farmer or merchant account, usable immediately (Teddy's call: no second KYC step nobody would complete for them). */
+export function useAdminCreatePerson() {
+  return useMutation({
+    mutationFn: async (payload: AdminCreatePersonInput) => {
+      const fn = httpsCallable<AdminCreatePersonInput, AdminCreatePersonResult>(functions, "adminCreatePerson");
       return (await fn(payload)).data;
     },
   });

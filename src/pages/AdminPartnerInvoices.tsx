@@ -80,7 +80,10 @@ export function AdminPartnerInvoices() {
                     <td>
                       <span className="pill">{ORIGIN_LABEL[row.origin]}</span>
                     </td>
-                    <td>{row.farmerName ?? row.partnerId ?? "—"}</td>
+                    <td>
+                      {row.farmerNames.length > 0 ? row.farmerNames.join(", ") : (row.partnerId ?? "—")}
+                      {row.isCooperative && <span className="pill" style={{ marginLeft: 6 }}>Coopérative</span>}
+                    </td>
                     <td>{row.merchantName ?? "—"}</td>
                     <td style={{ fontVariantNumeric: "tabular-nums" }}>{formatUsd(row.amountUsd)}</td>
                     <td style={{ fontSize: 12 }}>{fmtDate(row.createdAt)}</td>
@@ -178,7 +181,9 @@ export function AdminPartnerInvoiceDetail() {
   const fields: [string, string][] = [
     ["Origine", ORIGIN_LABEL[invoice.origin]],
     ...(invoice.partnerId ? [["Partenaire", invoice.partnerId] as [string, string]] : []),
-    ...(invoice.farmerName ? [["Agriculteur", invoice.farmerName] as [string, string]] : []),
+    ...(invoice.farmerNames.length > 0
+      ? [[invoice.isCooperative ? "Agriculteurs (coopérative)" : "Agriculteur", invoice.farmerNames.join(", ")] as [string, string]]
+      : []),
     ...(invoice.merchantName ? [["Commerçant", invoice.merchantName] as [string, string]] : []),
     ["ID facture", invoice.externalInvoiceId],
     ["Référence", invoice.reference || "—"],
