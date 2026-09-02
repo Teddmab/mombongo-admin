@@ -57,6 +57,7 @@ export function txProviderRef(id: string, data: Record<string, unknown>): string
 export const STATUS_LABEL: Record<string, string> = {
   completed: "Réussi",
   pending: "En cours",
+  processing: "En cours",
   failed: "Échoué",
   refunded: "Remboursé",
 };
@@ -64,6 +65,38 @@ export const STATUS_LABEL: Record<string, string> = {
 export const STATUS_PILL: Record<string, string> = {
   completed: "status-active",
   pending: "status-pending",
+  processing: "status-pending",
   failed: "status-blocked",
   refunded: "status-pending",
 };
+
+/* ─── Status filter translation layer ─────────────────────────────────────
+   The "Statut" filter must offer real backend states, but `pending` and
+   `processing` mean the same thing to an administrator ("en cours") and
+   splitting them into two dropdown options would just be internal
+   plumbing leaking into the UI. This groups real status values behind
+   one French-facing filter option each, per row so filtering never
+   mutates or hides the underlying stored value shown elsewhere. */
+export interface StatusFilterGroup {
+  key: string;
+  label: string;
+  matches: (status: string) => boolean;
+}
+
+export const STATUS_FILTER_GROUPS: StatusFilterGroup[] = [
+  { key: "completed", label: "Réussi", matches: (s) => s === "completed" },
+  { key: "pending", label: "En cours", matches: (s) => s === "pending" || s === "processing" },
+  { key: "failed", label: "Échoué", matches: (s) => s === "failed" },
+  { key: "refunded", label: "Remboursé", matches: (s) => s === "refunded" },
+];
+
+/** Masks the middle digits of an MSISDN for display — e.g. "+243812345678" → "+243 81 *** ** 78".
+ * Always masks (no granular per-admin permission tiers exist yet in this codebase to condition on). */
+export function maskPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 8) return phone;
+  const country = digits.length > 9 ? digits.slice(0, digits.length - 9) : "243";
+  const local = digits.slice(-9);
+  return `+${country} ${local.slice(0, 2)} *** ** ${local.slice(-2)}`;
+}

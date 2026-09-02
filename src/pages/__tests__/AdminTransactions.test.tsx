@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminTransactions, AdminTransactionDetail } from "@/pages/AdminTransactions";
 import {
   useTransactions, useTransactionDetail, useResendPartnerNotification,
-  useResolveReconciliationException, useCreateSupportTicket, useSupportTickets,
+  useResolveReconciliationException, useCreateSupportTicket, useSupportTickets, useRunReconciliationCheck,
+  type TransactionRow, type TransactionsPage,
 } from "@/hooks/useTransactions";
 
 vi.mock("@/hooks/useTransactions", async () => {
@@ -17,6 +18,7 @@ vi.mock("@/hooks/useTransactions", async () => {
     useResolveReconciliationException: vi.fn(),
     useCreateSupportTicket: vi.fn(),
     useSupportTickets: vi.fn(),
+    useRunReconciliationCheck: vi.fn(),
     downloadReceipt: vi.fn(),
   };
 });
@@ -27,14 +29,28 @@ const mockedResend = vi.mocked(useResendPartnerNotification);
 const mockedResolve = vi.mocked(useResolveReconciliationException);
 const mockedCreateTicket = vi.mocked(useCreateSupportTicket);
 const mockedTickets = vi.mocked(useSupportTickets);
+const mockedRunReconciliation = vi.mocked(useRunReconciliationCheck);
 
-const ROW = {
-  id: "tx1", type: "deposit", label: "Dépôt", direction: "in" as const,
+const ROW: TransactionRow = {
+  id: "tx1", source: "ledger", type: "deposit", label: "Dépôt", direction: "in",
   amount: 1250, currency: "USD", status: "completed", method: "mobile_money", operator: "Airtel",
-  participantName: "Jean Kalonji", secondaryParticipantName: null, reference: "dep_abc123",
+  participantName: "Jean Kalonji", secondaryParticipantName: null, phone: null, reference: "dep_abc123",
   createdAt: { seconds: Math.floor(Date.now() / 1000) } as never, externalInvoiceDocId: null,
-  reconciliationStatus: "unchecked" as const,
+  reconciliationStatus: "unchecked", feeUsd: null,
 };
+
+function mockList(rows: TransactionRow[] | undefined, overrides: Partial<{
+  isLoading: boolean; error: Error | null; isFetching: boolean; hasMore: boolean; dataUpdatedAt: number; refetch: () => void;
+}> = {}) {
+  mockedList.mockReturnValue({
+    data: rows === undefined ? undefined : ({ rows, hasMore: overrides.hasMore ?? false } satisfies TransactionsPage),
+    isLoading: overrides.isLoading ?? false,
+    isFetching: overrides.isFetching ?? false,
+    error: overrides.error ?? null,
+    refetch: overrides.refetch ?? vi.fn(),
+    dataUpdatedAt: overrides.dataUpdatedAt ?? Date.now(),
+  } as never);
+}
 
 function renderList() {
   return render(
@@ -54,48 +70,131 @@ describe("AdminTransactions list", () => {
     mockedResolve.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false } as never);
     mockedCreateTicket.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false } as never);
     mockedTickets.mockReturnValue({ data: [] } as never);
+    mockedRunReconciliation.mockReturnValue({ mutate: vi.fn(), isPending: false } as never);
   });
 
-  it("shows an error state", () => {
-    mockedList.mockReturnValue({ data: [], isLoading: false, error: new Error("boom") } as never);
+  it("shows an error state with a retry action, never a raw error string", () => {
+    const refetch = vi.fn();
+    mockList([], { error: new Error("boom"), refetch });
     renderList();
     expect(screen.getByRole("alert")).toHaveTextContent(/impossible de charger les transactions/i);
+    expect(screen.queryByText(/boom/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Réessayer"));
+    expect(refetch).toHaveBeenCalled();
   });
 
   it("shows a loading skeleton", () => {
-    mockedList.mockReturnValue({ data: [], isLoading: true, error: null } as never);
+    mockList(undefined, { isLoading: true });
     renderList();
     expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
   });
 
-  it("shows an empty state", () => {
-    mockedList.mockReturnValue({ data: [], isLoading: false, error: null } as never);
+  it("shows the true-empty state when there is no data at all", () => {
+    mockList([]);
     renderList();
-    expect(screen.getByText(/aucune transaction ne correspond/i)).toBeInTheDocument();
+    expect(screen.getByText("Aucune transaction")).toBeInTheDocument();
+    expect(screen.getByText(/apparaîtront ici lorsqu'ils seront enregistrés/i)).toBeInTheDocument();
   });
 
   it("renders a populated row with a signed, directional amount", () => {
-    mockedList.mockReturnValue({ data: [ROW], isLoading: false, error: null } as never);
+    mockList([ROW]);
     renderList();
     expect(screen.getByText(/Dépôt — Jean Kalonji/)).toBeInTheDocument();
     expect(screen.getAllByText(/1.250,00 \$/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Réussi").length).toBeGreaterThan(0);
   });
 
+  it("masks a row's phone number rather than showing it raw", () => {
+    mockList([{ ...ROW, phone: "+243812345678" }]);
+    renderList();
+    expect(screen.getByText(/\+243 81 \*\*\* \*\* 78/)).toBeInTheDocument();
+    expect(screen.queryByText("+243812345678")).not.toBeInTheDocument();
+  });
+
   it("filters by segment", () => {
-    const out = { ...ROW, id: "tx2", type: "withdrawal", label: "Retrait", direction: "out" as const, participantName: "Marie Femme" };
-    mockedList.mockReturnValue({ data: [ROW, out], isLoading: false, error: null } as never);
+    const out: TransactionRow = { ...ROW, id: "tx2", type: "withdrawal", label: "Retrait", direction: "out", participantName: "Marie Femme" };
+    mockList([ROW, out]);
     renderList();
     fireEvent.click(screen.getByRole("tab", { name: "Sorties" }));
     expect(screen.queryByText(/Jean Kalonji/)).not.toBeInTheDocument();
     expect(screen.getByText(/Marie Femme/)).toBeInTheDocument();
   });
 
-  it("filters by search text", () => {
-    mockedList.mockReturnValue({ data: [ROW], isLoading: false, error: null } as never);
+  it("filters by search text and offers to clear filters when nothing matches", () => {
+    mockList([ROW]);
     renderList();
-    fireEvent.change(screen.getByPlaceholderText(/nom ou référence/i), { target: { value: "zzz" } });
-    expect(screen.getByText(/aucune transaction ne correspond/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/nom, référence ou téléphone/i), { target: { value: "zzz" } });
+    expect(screen.getByText(/aucune transaction ne correspond à vos filtres/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Effacer les filtres"));
+    expect(screen.getByText(/Jean Kalonji/)).toBeInTheDocument();
+  });
+
+  it("a pending attempt row (no ledger entry yet) still shows up, with an 'En cours' status", () => {
+    const attempt: TransactionRow = {
+      ...ROW, id: "attempt:deposit:dep1", source: "deposit_attempt", status: "pending", reconciliationStatus: "not_applicable",
+    };
+    mockList([attempt]);
+    renderList();
+    expect(screen.getAllByText("En cours").length).toBeGreaterThan(0);
+  });
+
+  it("clicking the 'Réussies' KPI card filters the list to completed transactions", () => {
+    const pending: TransactionRow = {
+      ...ROW, id: "tx2", source: "deposit_attempt", status: "pending", reconciliationStatus: "not_applicable", participantName: "Marie Femme",
+    };
+    mockList([ROW, pending]);
+    renderList();
+    fireEvent.click(screen.getByRole("button", { name: /réussies/i }));
+    expect(screen.getByText(/Jean Kalonji/)).toBeInTheDocument();
+    expect(screen.queryByText(/Marie Femme/)).not.toBeInTheDocument();
+  });
+
+  it("clicking the 'À rapprocher' KPI card filters to reconciliation exceptions", () => {
+    const exception: TransactionRow = { ...ROW, id: "tx2", participantName: "Entreprise Canaan", reconciliationStatus: "exception" };
+    mockList([ROW, exception]);
+    renderList();
+    fireEvent.click(screen.getByRole("button", { name: /à rapprocher/i }));
+    expect(screen.queryByText(/Jean Kalonji/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Entreprise Canaan/)).toBeInTheDocument();
+    expect(screen.getAllByText("À vérifier").length).toBeGreaterThan(0);
+  });
+
+  it("Actualiser refetches without losing the active filters", () => {
+    const refetch = vi.fn();
+    const out: TransactionRow = { ...ROW, id: "tx2", direction: "out", participantName: "Marie Femme" };
+    mockList([ROW, out], { refetch });
+    renderList();
+    fireEvent.click(screen.getByRole("tab", { name: "Sorties" }));
+    fireEvent.click(screen.getByText("Actualiser"));
+    expect(refetch).toHaveBeenCalled();
+    expect(screen.queryByText(/Jean Kalonji/)).not.toBeInTheDocument();
+  });
+
+  it("shows 'Charger plus' when the ledger page is full, and 'Chargement terminé' when it isn't", () => {
+    mockList([ROW], { hasMore: true });
+    const { unmount } = renderList();
+    expect(screen.getByText(/charger plus de transactions/i)).toBeInTheDocument();
+    unmount();
+
+    mockList([ROW], { hasMore: false });
+    renderList();
+    expect(screen.getByText("Chargement terminé")).toBeInTheDocument();
+  });
+
+  it("opens the export dialog instead of exporting immediately", () => {
+    mockList([ROW]);
+    renderList();
+    fireEvent.click(screen.getByText("Exporter"));
+    expect(screen.getByText("Exporter les transactions")).toBeInTheDocument();
+    expect(screen.getByText(/masquer les numéros de téléphone/i)).toBeInTheDocument();
+  });
+
+  it("reconciliation exception rows get an attention row style and an Examiner action", () => {
+    mockList([{ ...ROW, reconciliationStatus: "exception" }]);
+    renderList();
+    const row = screen.getByText(/Dépôt — Jean Kalonji/).closest("tr")!;
+    expect(row.className).toContain("attention-row");
+    expect(screen.getByText("Examiner")).toBeInTheDocument();
   });
 });
 
@@ -152,6 +251,19 @@ describe("AdminTransactionDetail", () => {
     renderDetail({ feeUsd: 2.5 });
     expect(screen.queryByText("non communiqué")).not.toBeInTheDocument();
     expect(screen.getAllByText(/2,50 \$/).length).toBeGreaterThan(0);
+  });
+
+  it("shows a masked phone number in the payment details when one is on record", () => {
+    renderDetail({ phone: "+243812345678" });
+    expect(screen.getByText(/\+243 81 \*\*\* \*\* 78/)).toBeInTheDocument();
+  });
+
+  it("shows a slow-provider warning for a still-pending payment, with no fake 'verify' action", () => {
+    renderDetail({ source: "deposit_attempt", status: "pending", reconciliationStatus: "not_applicable" });
+    expect(screen.getByText(/la confirmation du paiement prend plus de temps/i)).toBeInTheDocument();
+    expect(screen.getByText(/ne lancez pas un deuxième paiement/i)).toBeInTheDocument();
+    // No receipt exists yet for an unsettled attempt — don't offer to download one.
+    expect(screen.queryByText(/télécharger le reçu/i)).not.toBeInTheDocument();
   });
 
   it("reconciliation: shows 'not yet checked' honestly rather than claiming a match", () => {

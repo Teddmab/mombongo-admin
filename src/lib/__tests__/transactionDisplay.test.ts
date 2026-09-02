@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { txTypeMeta, txAmount, txProviderRef, formatAmount } from "../transactionDisplay";
+import { txTypeMeta, txAmount, txProviderRef, formatAmount, maskPhone, STATUS_FILTER_GROUPS } from "../transactionDisplay";
 
 describe("txTypeMeta", () => {
   it("maps known types to a French label and direction", () => {
@@ -56,5 +56,33 @@ describe("formatAmount", () => {
   it("uses fr-FR grouping for larger amounts", () => {
     // fr-FR groups with a narrow no-break space, not a regular space
     expect(formatAmount(1250, "USD")).toMatch(/^1.250,00 \$$/u);
+  });
+});
+
+describe("maskPhone", () => {
+  it("masks the middle digits of a DRC MSISDN", () => {
+    expect(maskPhone("+243812345678")).toBe("+243 81 *** ** 78");
+  });
+
+  it("returns null for a missing phone rather than an empty string", () => {
+    expect(maskPhone(null)).toBeNull();
+    expect(maskPhone(undefined)).toBeNull();
+  });
+
+  it("leaves an implausibly short value untouched rather than mangling it", () => {
+    expect(maskPhone("123")).toBe("123");
+  });
+});
+
+describe("STATUS_FILTER_GROUPS", () => {
+  it("groups pending and processing under one 'En cours' filter option", () => {
+    const pending = STATUS_FILTER_GROUPS.find((g) => g.key === "pending")!;
+    expect(pending.matches("pending")).toBe(true);
+    expect(pending.matches("processing")).toBe(true);
+    expect(pending.matches("completed")).toBe(false);
+  });
+
+  it("keeps completed, failed and refunded as distinct groups", () => {
+    expect(STATUS_FILTER_GROUPS.map((g) => g.key)).toEqual(["completed", "pending", "failed", "refunded"]);
   });
 });
