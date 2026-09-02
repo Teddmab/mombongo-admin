@@ -23,12 +23,17 @@ const mockedFailures = vi.mocked(useFailedNotifications);
 const mockedRetry = vi.mocked(useRetryPartnerNotification);
 
 const API_ROW = {
-  id: "inv1", origin: "partner_api" as const, partnerId: "arom", farmerName: null, merchantName: null,
+  id: "inv1", origin: "partner_api" as const, partnerId: "arom", farmerName: null, farmerNames: [], isCooperative: false, merchantName: null,
   amountUsd: 50, method: "mobile_money", status: "paid", createdAt: { seconds: 1723000000 } as never,
 };
 const HARVEST_ROW = {
-  id: "inv2", origin: "harvest_sale" as const, partnerId: null, farmerName: "Jean Kalonji", merchantName: "AROM Industries",
+  id: "inv2", origin: "harvest_sale" as const, partnerId: null, farmerName: "Jean Kalonji", farmerNames: ["Jean Kalonji"], isCooperative: false, merchantName: "AROM Industries",
   amountUsd: 100, method: "mobile_money", status: "pending", createdAt: { seconds: 1723000000 } as never,
+};
+const COOP_ROW = {
+  id: "inv3", origin: "admin_assisted" as const, partnerId: null, farmerName: "Jean Kalonji",
+  farmerNames: ["Jean Kalonji (60 kg)", "Marie Tshisekedi (40 kg)"], isCooperative: true, merchantName: "AROM Industries",
+  amountUsd: 100, method: null, status: "pending", createdAt: { seconds: 1723000000 } as never,
 };
 
 function renderList() {
@@ -77,6 +82,13 @@ describe("AdminPartnerInvoices list", () => {
     fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "harvest_sale" } });
     expect(screen.queryByText("arom")).not.toBeInTheDocument();
     expect(screen.getByText("Jean Kalonji")).toBeInTheDocument();
+  });
+
+  it("shows every farmer in a cooperative invoice with a Coopérative badge", () => {
+    mockedList.mockReturnValue({ data: [COOP_ROW], isLoading: false, error: null } as never);
+    renderList();
+    expect(screen.getByText(/Jean Kalonji \(60 kg\), Marie Tshisekedi \(40 kg\)/)).toBeInTheDocument();
+    expect(screen.getByText("Coopérative")).toBeInTheDocument();
   });
 });
 

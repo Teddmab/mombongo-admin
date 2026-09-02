@@ -10,11 +10,27 @@ export interface PartnerInvoiceRow {
   origin: InvoiceOrigin;
   partnerId: string | null;
   farmerName: string | null;
+  /** All issuers — a single farmer's name, or every member of a cooperative when isCooperative is true. */
+  farmerNames: string[];
+  isCooperative: boolean;
   merchantName: string | null;
   amountUsd: number;
   method: string | null;
   status: string;
   createdAt: Timestamp | null;
+}
+
+/** farmers[] entries are {farmerId, contributedKg} — resolves each to a "Name (Xkg)" label for cooperative invoices. */
+function resolveFarmerNames(
+  data: Record<string, unknown>,
+  names: Map<string, string>,
+): string[] {
+  const farmers = data.farmers as { farmerId: string; contributedKg: number }[] | undefined;
+  if (Array.isArray(farmers) && farmers.length > 0) {
+    return farmers.map((f) => `${names.get(f.farmerId) ?? f.farmerId} (${f.contributedKg} kg)`);
+  }
+  const farmerId = data.farmerId as string | undefined;
+  return farmerId ? [names.get(farmerId) ?? farmerId] : [];
 }
 
 export const ORIGIN_LABEL: Record<InvoiceOrigin, string> = {
@@ -41,13 +57,17 @@ export function usePartnerInvoices() {
     queryFn: async () => {
       const snap = await getDocs(query(collection(db, "external_invoices"), orderBy("createdAt", "desc"), limit(100)));
       const docs = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
-      const names = await resolveNames(docs.flatMap(({ data }) => [data.farmerId, data.merchantId]));
+      const allFarmerIds = docs.flatMap(({ data }) =>
+        Array.isArray(data.farmers) ? (data.farmers as { farmerId: string }[]).map((f) => f.farmerId) : [data.farmerId as string | undefined]);
+      const names = await resolveNames([...allFarmerIds, ...docs.map(({ data }) => data.merchantId as string | undefined)]);
 
       return docs.map(({ id, data }) => ({
         id,
         origin: (data.origin as InvoiceOrigin) ?? "partner_api",
         partnerId: (data.partnerId as string) ?? null,
         farmerName: data.farmerId ? (names.get(data.farmerId as string) ?? null) : null,
+        farmerNames: resolveFarmerNames(data, names),
+        isCooperative: !!data.isCooperative,
         merchantName: data.merchantId ? (names.get(data.merchantId as string) ?? null) : null,
         amountUsd: (data.amountUsd as number) ?? 0,
         method: (data.method as string) ?? null,
@@ -80,13 +100,16 @@ export function usePartnerInvoiceDetail(id: string | undefined) {
       if (!snap.exists()) return null;
       const data = snap.data();
 
-      const names = await resolveNames([data.farmerId, data.merchantId, data.adminAssisted?.actorUid]);
+      const farmerIds = Array.isArray(data.farmers) ? (data.farmers as { farmerId: string }[]).map((f) => f.farmerId) : [data.farmerId];
+      const names = await resolveNames([...farmerIds, data.merchantId, data.adminAssisted?.actorUid]);
 
       return {
         id: id!,
         origin: (data.origin as InvoiceOrigin) ?? "partner_api",
         partnerId: (data.partnerId as string) ?? null,
         farmerName: data.farmerId ? (names.get(data.farmerId as string) ?? null) : null,
+        farmerNames: resolveFarmerNames(data, names),
+        isCooperative: !!data.isCooperative,
         merchantName: data.merchantId ? (names.get(data.merchantId as string) ?? null) : null,
         amountUsd: (data.amountUsd as number) ?? 0,
         method: (data.method as string) ?? null,
