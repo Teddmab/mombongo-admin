@@ -45,7 +45,7 @@ describe("AdminSidebar", () => {
   it("covers every route family registered in App.tsx — nothing dropped from the old flat nav", () => {
     renderSidebar();
     const expectedHrefs = [
-      "/admin", "/admin/users", "/admin/farmers", "/admin/products",
+      "/admin", "/admin/investors", "/admin/farmers", "/admin/agents", "/admin/merchants", "/admin/products",
       "/admin/opportunities", "/admin/bourse", "/admin/harvest-offers",
       "/admin/qa/harvest-offers", "/admin/agronomie", "/admin/academia",
       "/admin/offers", "/admin/agro-exchange", "/admin/kyc",
@@ -76,7 +76,7 @@ describe("AdminSidebar", () => {
   it("marks the current route's link active", () => {
     renderSidebar("/admin/farmers");
     expect(screen.getByRole("link", { name: /Agriculteurs/ })).toHaveClass("active");
-    expect(screen.getByRole("link", { name: /Utilisateurs/ })).not.toHaveClass("active");
+    expect(screen.getByRole("link", { name: /Investisseurs/ })).not.toHaveClass("active");
   });
 
   it("signs out when Déconnexion is clicked", async () => {

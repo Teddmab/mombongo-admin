@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
-  LayoutDashboard, Users, Sprout, ShieldCheck, Package, Briefcase,
+  LayoutDashboard, Users, Sprout, ClipboardList, Store, ShieldCheck, Package, Briefcase,
   TrendingUp, Leaf, GraduationCap, Tag, Wheat, ShieldQuestion,
   Receipt, Coins, Handshake, KeyRound, FileBarChart, Bell, BellRing,
   Film, ChevronDown, X, LogOut, Settings,
@@ -32,8 +32,10 @@ const GROUPS: NavGroup[] = [
     id: "personnes",
     label: "Personnes",
     items: [
-      { to: "/admin/users", label: "Utilisateurs", icon: Users },
+      { to: "/admin/investors", label: "Investisseurs", icon: Users },
       { to: "/admin/farmers", label: "Agriculteurs", icon: Sprout },
+      { to: "/admin/agents", label: "Agents terrain", icon: ClipboardList },
+      { to: "/admin/merchants", label: "Commerçants", icon: Store },
       { to: "/admin/kyc", label: "KYC & conformité", icon: ShieldCheck },
     ],
   },

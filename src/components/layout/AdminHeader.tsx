@@ -5,8 +5,10 @@ import { useSidebarDrawer } from "@/components/layout/sidebar-drawer-context";
 
 const LABELS: Record<string, { title: string; description: string }> = {
   "/admin": { title: "Vue d'ensemble", description: "Suivi des priorités, KPI et activité." },
-  "/admin/users": { title: "Utilisateurs", description: "Administration des rôles, KYC et statut des comptes." },
+  "/admin/investors": { title: "Investisseurs", description: "Comptes investisseurs, portefeuille et historique d'investissement." },
   "/admin/farmers": { title: "Agriculteurs", description: "Profils, exploitations et activité des agriculteurs." },
+  "/admin/agents": { title: "Agents terrain", description: "Agents, agriculteurs assignés et rapports de visite." },
+  "/admin/merchants": { title: "Commerçants", description: "Comptes commerçants, offres sur récolte et factures." },
   "/admin/products": { title: "Produits", description: "Catalogue des produits publiés sur la plateforme." },
   "/admin/transactions": { title: "Transactions", description: "Traçabilité des flux financiers." },
   "/admin/opportunities": { title: "Opportunités", description: "Pipeline d'investissement de la coopérative." },
