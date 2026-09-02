@@ -5,8 +5,10 @@ import { AdminShell } from "@/components/layout/AdminShell";
 import { AdminOpportunities } from "@/pages/AdminOpportunities";
 import { AdminReports } from "@/pages/AdminReports";
 import { AdminDashboard } from "@/pages/AdminDashboard";
-import { AdminUsers } from "@/pages/AdminUsers";
 import { AdminFarmers, AdminFarmerDetail } from "@/pages/AdminFarmers";
+import { AdminInvestors, AdminInvestorDetail } from "@/pages/AdminInvestors";
+import { AdminAgents, AdminAgentDetail } from "@/pages/AdminAgents";
+import { AdminMerchants, AdminMerchantDetail } from "@/pages/AdminMerchants";
 import { AdminTransactions, AdminTransactionDetail } from "@/pages/AdminTransactions";
 import { AdminKyc } from "@/pages/AdminKyc";
 import { AdminAlerts } from "@/pages/AdminAlerts";
@@ -46,9 +48,14 @@ export default function App() {
               <Route path="/" element={<Navigate to="/admin" replace />} />
               <Route path="/admin" element={<AdminShell />}>
                 <Route index element={<AdminDashboard />} />
-                <Route path="users" element={<AdminUsers />} />
+                <Route path="investors" element={<AdminInvestors />} />
+                <Route path="investors/:id" element={<AdminInvestorDetail />} />
                 <Route path="farmers" element={<AdminFarmers />} />
                 <Route path="farmers/:id" element={<AdminFarmerDetail />} />
+                <Route path="agents" element={<AdminAgents />} />
+                <Route path="agents/:id" element={<AdminAgentDetail />} />
+                <Route path="merchants" element={<AdminMerchants />} />
+                <Route path="merchants/:id" element={<AdminMerchantDetail />} />
                 <Route path="products" element={<AdminProducts />} />
                 <Route path="transactions" element={<AdminTransactions />} />
                 <Route
