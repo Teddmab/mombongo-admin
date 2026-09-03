@@ -228,10 +228,14 @@ describe("AdminTransactionDetail", () => {
         reconciliationNote: null,
         reconciliationResolvedByName: null,
         reconciliationResolutionNote: null,
+        payerName: null,
+        invoiceNumber: null,
+        partnerId: null,
         ...overrides,
       },
       isLoading: false,
       error: null,
+      refetch: vi.fn(),
     } as never);
     return render(
       <MemoryRouter initialEntries={["/admin/transactions/tx1"]}>
@@ -260,7 +264,7 @@ describe("AdminTransactionDetail", () => {
 
   it("shows a slow-provider warning for a still-pending payment, with no fake 'verify' action", () => {
     renderDetail({ source: "deposit_attempt", status: "pending", reconciliationStatus: "not_applicable" });
-    expect(screen.getByText(/la confirmation du paiement prend plus de temps/i)).toBeInTheDocument();
+    expect(screen.getByText(/la confirmation peut prendre quelques minutes/i)).toBeInTheDocument();
     expect(screen.getByText(/ne lancez pas un deuxième paiement/i)).toBeInTheDocument();
     // No receipt exists yet for an unsettled attempt — don't offer to download one.
     expect(screen.queryByText(/télécharger le reçu/i)).not.toBeInTheDocument();
@@ -325,10 +329,11 @@ describe("AdminTransactionDetail", () => {
       data: {
         ...ROW, type: "external_invoice_payment", label: "Paiement de facture",
         externalInvoiceDocId: "inv1", timeline: [], notificationStatus: "failed",
-        notificationFailureReason: "Timeout",
+        notificationFailureReason: "Timeout", payerName: null, invoiceNumber: null, partnerId: null,
       },
       isLoading: false,
       error: null,
+      refetch: vi.fn(),
     } as never);
     render(
       <MemoryRouter initialEntries={["/admin/transactions/tx1"]}>
@@ -338,5 +343,87 @@ describe("AdminTransactionDetail", () => {
     expect(screen.getByText("Échec de notification")).toBeInTheDocument();
     expect(screen.getByText("Timeout")).toBeInTheDocument();
     expect(screen.getByText("Renvoyer la notification")).toBeInTheDocument();
+  });
+
+  it("resend requires an explicit confirmation before actually sending", () => {
+    const mutate = vi.fn();
+    mockedResend.mockReturnValue({ mutate, isPending: false, isSuccess: false, isError: false } as never);
+    renderDetail({ type: "external_invoice_payment", externalInvoiceDocId: "inv1", notificationStatus: "failed", notificationFailureReason: "Timeout" });
+    fireEvent.click(screen.getByText("Renvoyer la notification"));
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByText(/confirmer le renvoi de la notification/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/échec de notification/i).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByText("Confirmer l'envoi"));
+    expect(mutate).toHaveBeenCalledWith("inv1", expect.anything());
+  });
+
+  it("warns explicitly when resending a notification that already succeeded", () => {
+    mockedResend.mockReturnValue({ mutate: vi.fn(), isPending: false, isSuccess: false, isError: false } as never);
+    renderDetail({ type: "external_invoice_payment", externalInvoiceDocId: "inv1", notificationStatus: "sent" });
+    fireEvent.click(screen.getByText("Renvoyer la notification"));
+    expect(screen.getByText(/AROM a déjà été notifié avec succès/i)).toBeInTheDocument();
+  });
+
+  it("copy buttons show 'Référence copiée' feedback", () => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn() } });
+    renderDetail({});
+    const copyButtons = screen.getAllByLabelText(/copier/i);
+    fireEvent.click(copyButtons[0]);
+    expect(screen.getByText("Référence copiée")).toBeInTheDocument();
+  });
+
+  it("distinguishes Payeur (the partner) from Bénéficiaire (the producer) for an invoice payment", () => {
+    renderDetail({
+      type: "external_invoice_payment", label: "Paiement de facture", participantName: "Jean Kalonji",
+      payerName: "AROM", invoiceNumber: "MOB-2026-00125", externalInvoiceDocId: "inv1",
+    });
+    expect(screen.getByText("Payeur")).toBeInTheDocument();
+    expect(screen.getByText("AROM")).toBeInTheDocument();
+    expect(screen.getByText("Bénéficiaire")).toBeInTheDocument();
+    expect(screen.getAllByText("Jean Kalonji").length).toBeGreaterThan(0);
+  });
+
+  it("reconciliation: never invents an AROM reception reference — shows the honest fallback instead", () => {
+    renderDetail({ type: "external_invoice_payment", externalInvoiceDocId: "inv1", reconciliationStatus: "matched" });
+    expect(screen.getByText("Référence de réception non communiquée")).toBeInTheDocument();
+    expect(screen.queryByText(/^RCPT-/)).not.toBeInTheDocument();
+  });
+
+  it("reconciliation: links to the real invoice detail route when matched", () => {
+    renderDetail({ type: "external_invoice_payment", externalInvoiceDocId: "inv1", invoiceNumber: "MOB-2026-00125", reconciliationStatus: "matched" });
+    expect(screen.getByText(/facture rapprochée/i)).toBeInTheDocument();
+    const links = screen.getAllByRole("button", { name: /MOB-2026-00125/ });
+    expect(links.length).toBeGreaterThan(0);
+  });
+
+  it("does not offer a receipt download for an unsettled (pending) payment", () => {
+    renderDetail({ status: "pending", reconciliationStatus: "not_applicable" });
+    expect(screen.queryByText(/preuve de paiement/i)).not.toBeInTheDocument();
+  });
+
+  it("breadcrumb returns to the transactions list", () => {
+    mockList([]);
+    mockedRunReconciliation.mockReturnValue({ mutate: vi.fn(), isPending: false } as never);
+    mockedDetail.mockReturnValue({
+      data: {
+        ...ROW,
+        timeline: [], notificationStatus: "not_applicable", notificationFailureReason: null,
+        reconciliationNote: null, reconciliationResolvedByName: null, reconciliationResolutionNote: null,
+        payerName: null, invoiceNumber: null, partnerId: null,
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+    render(
+      <MemoryRouter initialEntries={["/admin/transactions/tx1"]}>
+        <Routes>
+          <Route path="/admin/transactions" element={<AdminTransactions />} />
+          <Route path="/admin/transactions/:id" element={<AdminTransactionDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: /transactions/i })[0]);
+    expect(screen.getByText("Suivez les mouvements d'argent et les paiements.")).toBeInTheDocument();
   });
 });
