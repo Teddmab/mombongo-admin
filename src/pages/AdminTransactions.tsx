@@ -1,14 +1,15 @@
-import { Fragment, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Download, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Send, Loader2, FileDown, Headset,
   ShieldAlert, ShieldCheck, RefreshCw, Wallet, CheckCircle2, Hourglass, Scale, Search, X,
+  Smartphone, Copy, Info, ChevronDown, ChevronUp, Calendar, ExternalLink, XCircle, RotateCcw, ArrowLeft,
 } from "lucide-react";
 import {
   useTransactions, useTransactionDetail, useResendPartnerNotification,
   useResolveReconciliationException, useCreateSupportTicket, useSupportTickets, useRunReconciliationCheck,
   downloadReceipt, LEDGER_PAGE_SIZE,
-  type TransactionRow, type TxDirection,
+  type TransactionRow, type TransactionDetail, type TxDirection,
 } from "@/hooks/useTransactions";
 import { STATUS_LABEL, STATUS_PILL, STATUS_FILTER_GROUPS, formatAmount, maskPhone } from "@/lib/transactionDisplay";
 
@@ -26,6 +27,10 @@ const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
 
 function fmtDateTime(ts?: { seconds: number } | null) {
   return ts ? new Date(ts.seconds * 1000).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—";
+}
+/** Full precision (with seconds) for the payment progression timeline — the list/summary views only ever need minute precision. */
+function fmtDateTimeSec(ts?: { seconds: number } | null) {
+  return ts ? new Date(ts.seconds * 1000).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }).replace(",", " à") : "—";
 }
 function fmtTime(ts?: { seconds: number } | null) {
   return ts ? new Date(ts.seconds * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "—";
@@ -184,20 +189,42 @@ function ExportDialog({ rows, onClose }: { rows: TransactionRow[]; onClose: () =
 
 export function AdminTransactions() {
   const navigate = useNavigate();
-  const [pageSize, setPageSize] = useState(LEDGER_PAGE_SIZE);
+  // Filters live in the URL (not just component state) so that navigating to a
+  // transaction's detail page and back — via the browser's own history, e.g.
+  // the "← Transactions" button — restores the exact same search/filter/page
+  // state instead of resetting to defaults.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [pageSize, setPageSize] = useState(() => {
+    const fromUrl = Number(searchParams.get("pageSize"));
+    return fromUrl > 0 ? fromUrl : LEDGER_PAGE_SIZE;
+  });
   const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useTransactions(pageSize);
   const all = useMemo(() => data?.rows ?? [], [data]);
   const runReconciliation = useRunReconciliationCheck();
 
-  const [segment, setSegment] = useState<Segment>("all");
-  const [methodFilter, setMethodFilter] = useState("");
-  const [statusGroupKey, setStatusGroupKey] = useState("");
-  const [periodKey, setPeriodKey] = useState<PeriodKey>("");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-  const [search, setSearch] = useState("");
+  const [segment, setSegment] = useState<Segment>((searchParams.get("segment") as Segment) || "all");
+  const [methodFilter, setMethodFilter] = useState(searchParams.get("method") ?? "");
+  const [statusGroupKey, setStatusGroupKey] = useState(searchParams.get("status") ?? "");
+  const [periodKey, setPeriodKey] = useState<PeriodKey>((searchParams.get("period") as PeriodKey) || "");
+  const [customFrom, setCustomFrom] = useState(searchParams.get("from") ?? "");
+  const [customTo, setCustomTo] = useState(searchParams.get("to") ?? "");
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [showExport, setShowExport] = useState(false);
   const [openFilter, setOpenFilter] = useState<"period" | "method" | "status" | null>(null);
+
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    if (segment !== "all") next.segment = segment;
+    if (methodFilter) next.method = methodFilter;
+    if (statusGroupKey) next.status = statusGroupKey;
+    if (periodKey) next.period = periodKey;
+    if (customFrom) next.from = customFrom;
+    if (customTo) next.to = customTo;
+    if (search) next.q = search;
+    if (pageSize !== LEDGER_PAGE_SIZE) next.pageSize = String(pageSize);
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segment, methodFilter, statusGroupKey, periodKey, customFrom, customTo, search, pageSize]);
 
   const methods = useMemo(() => Array.from(new Set(all.map((r) => r.method).filter((m): m is string => !!m))), [all]);
 
@@ -578,10 +605,88 @@ export function AdminTransactions() {
 
 /* ─── Transaction detail ─────────────────────────────────────────────────── */
 
+const TIMELINE_DESCRIPTIONS: Record<string, string> = {
+  "Transaction enregistrée": "La transaction a été enregistrée dans le registre Mombongo.",
+  "Paiement initié": "La demande de paiement a été créée.",
+  "Demande envoyée à l'opérateur": "La demande a été envoyée à l'opérateur.",
+  "Envoyé à l'opérateur": "La demande a été envoyée à l'opérateur.",
+  "Confirmé par l'opérateur": "L'opérateur a confirmé le paiement.",
+  "Facture marquée payée": "La facture a été marquée comme payée.",
+  "AROM notifié": "AROM a été notifié avec succès.",
+  "Échec signalé par l'opérateur": "L'opérateur a signalé un échec du paiement.",
+};
+
+/** For a terminal (completed/failed/refunded) transaction, the last recorded timeline event is the closest real completion moment — falls back to createdAt only when no later event exists. */
+function completionMoment(tx: TransactionDetail): { value: string; label: string } {
+  const lastEvent = tx.timeline[tx.timeline.length - 1];
+  if (tx.status === "completed") return { value: fmtDateTime(lastEvent?.at ?? tx.createdAt), label: "Date et heure du paiement" };
+  if (tx.status === "failed") return { value: fmtDateTime(lastEvent?.at ?? tx.createdAt), label: "Échoué le" };
+  if (tx.status === "refunded") return { value: fmtDateTime(lastEvent?.at ?? tx.createdAt), label: "Remboursé le" };
+  if (tx.status === "processing") return { value: fmtDateTime(lastEvent?.at ?? tx.createdAt), label: "Envoyé le" };
+  return { value: fmtDateTime(tx.createdAt), label: "Créé le" };
+}
+
+function PaymentMethodIcon({ tx }: { tx: TransactionDetail }) {
+  if (tx.type.includes("refund")) return <RotateCcw size={26} color="hsl(var(--green-700))" />;
+  if (tx.method === "mobile_money" || tx.source !== "ledger") return <Smartphone size={26} color="hsl(var(--green-700))" />;
+  if (tx.type === "investment" || tx.type === "bourse_investment" || tx.type === "financing") return <Wallet size={26} color="hsl(var(--green-700))" />;
+  return <ArrowLeftRight size={26} color="hsl(var(--green-700))" />;
+}
+
+function HeroStatusBadge({ tx }: { tx: TransactionDetail }) {
+  if (tx.reconciliationStatus === "exception") {
+    return <span className="pill status-blocked" style={{ fontSize: 13, padding: "6px 12px" }}><ShieldAlert size={14} /> À vérifier</span>;
+  }
+  if (tx.status === "completed") {
+    return <span className="pill status-active" style={{ fontSize: 13, padding: "6px 12px" }}><CheckCircle2 size={14} /> Réussi</span>;
+  }
+  if (tx.status === "failed") {
+    return <span className="pill status-blocked" style={{ fontSize: 13, padding: "6px 12px" }}><XCircle size={14} /> Échec</span>;
+  }
+  return <span className={`pill ${STATUS_PILL[tx.status] ?? ""}`} style={{ fontSize: 13, padding: "6px 12px" }}><Hourglass size={14} /> {STATUS_LABEL[tx.status] ?? tx.status}</span>;
+}
+
+function CopyField({ label, value, field, copiedField, onCopy, mono }: {
+  label: string; value: string; field: string; copiedField: string | null; onCopy: (field: string, value: string) => void; mono?: boolean;
+}) {
+  return (
+    <div className="border-b border-gray-50 py-2">
+      <div className="flex justify-between items-center">
+        <dt className="text-[13px] text-gray-500">{label}</dt>
+        <div className="flex items-center gap-2">
+          <dd className="text-[13px] font-semibold text-gray-900" style={{ fontFamily: mono ? "monospace" : undefined }}>{value}</dd>
+          <button
+            type="button"
+            onClick={() => onCopy(field, value)}
+            aria-label={`Copier ${label.toLowerCase()}`}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "hsl(var(--gray-400))", padding: 2 }}
+          >
+            <Copy size={13} />
+          </button>
+        </div>
+      </div>
+      {copiedField === field && <p style={{ fontSize: 11, color: "hsl(var(--green-700))", textAlign: "right", marginTop: 2 }}>Référence copiée</p>}
+    </div>
+  );
+}
+
+function DetailSkeleton() {
+  return (
+    <section className="page">
+      <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
+      <div className="h-9 w-64 bg-gray-100 rounded animate-pulse" style={{ marginTop: 12 }} />
+      <div className="h-28 bg-gray-100 rounded-2xl animate-pulse" style={{ marginTop: 16 }} />
+      <div className="panel-grid" style={{ marginTop: 16 }}>
+        {[1, 2, 3, 4].map((n) => <div key={n} className="h-40 bg-gray-100 rounded-2xl animate-pulse" />)}
+      </div>
+    </section>
+  );
+}
+
 export function AdminTransactionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: tx, isLoading, error } = useTransactionDetail(id);
+  const { data: tx, isLoading, error, refetch } = useTransactionDetail(id);
   const resend = useResendPartnerNotification();
   const resolveException = useResolveReconciliationException();
   const [resolutionNote, setResolutionNote] = useState("");
@@ -590,66 +695,184 @@ export function AdminTransactionDetail() {
   const createTicket = useCreateSupportTicket();
   const [ticketDescription, setTicketDescription] = useState("");
   const [showTicketForm, setShowTicketForm] = useState(false);
+  const [showResendConfirm, setShowResendConfirm] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  if (isLoading) {
-    return <section className="page"><div className="h-64 bg-gray-100 rounded-2xl animate-pulse" /></section>;
+  function copy(field: string, value: string) {
+    void navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField((f) => (f === field ? null : f)), 2000);
   }
+
+  if (isLoading) return <DetailSkeleton />;
   if (error) {
-    return <section className="page"><p role="alert" className="error-text text-center py-20">Impossible de charger cette transaction.</p></section>;
+    return (
+      <section className="page">
+        <div role="alert" style={{ textAlign: "center", padding: "60px 0" }}>
+          <p className="error-text">Impossible de charger cette transaction.</p>
+          <div className="button-row" style={{ justifyContent: "center", marginTop: 12 }}>
+            <button onClick={() => refetch()} className="button-outline">Réessayer</button>
+            <button onClick={() => navigate("/admin/transactions")} className="button-outline">Contacter l'assistance</button>
+          </div>
+        </div>
+      </section>
+    );
   }
   if (!tx) {
-    return <section className="page"><p className="text-center text-gray-400 py-20">Transaction introuvable</p></section>;
+    return (
+      <section className="page">
+        <div style={{ textAlign: "center", padding: "60px 0" }}>
+          <p className="font-semibold">Transaction introuvable</p>
+          <div className="button-row" style={{ justifyContent: "center", marginTop: 12 }}>
+            <button onClick={() => navigate("/admin/transactions")} className="button-outline">Retour aux transactions</button>
+            <button onClick={() => refetch()} className="button-outline">Actualiser</button>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   const signed = signedAmount(tx);
   const isAttempt = tx.source !== "ledger";
   const maskedPhone = maskPhone(tx.phone);
+  const isInvoicePayment = tx.type === "external_invoice_payment";
+  const completion = completionMoment(tx);
+  const hasProof = !isAttempt && (tx.status === "completed" || tx.status === "refunded");
+  const alreadyNotified = tx.notificationStatus === "sent";
 
   return (
     <section className="page">
-      <button onClick={() => navigate(-1)} className="text-sm text-blue-600 mb-4">← Retour</button>
+      <nav aria-label="Fil d'ariane" className="flex items-center gap-1.5" style={{ fontSize: 13 }}>
+        <span style={{ color: "hsl(var(--green-700))", fontWeight: 600 }}>Finance</span>
+        <span className="muted">/</span>
+        <button onClick={() => navigate("/admin/transactions")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "hsl(var(--green-700))", fontWeight: 600 }}>
+          Transactions
+        </button>
+        <span className="muted">/</span>
+        <span className="muted">{tx.reference.slice(0, 20)}</span>
+      </nav>
 
-      <div className="page-header">
+      <button onClick={() => navigate(-1)} className="button-outline" style={{ height: 42, marginTop: 12, marginBottom: 4, width: "fit-content" }}>
+        <ArrowLeft size={14} /> Transactions
+      </button>
+
+      <div className="page-header" style={{ marginTop: 8 }}>
         <div>
           <div className="section-kicker">{tx.label}</div>
-          <h1 className="page-title" style={{ color: signed.color }}>{signed.text}</h1>
-          <p className="page-copy">{tx.participantName}{tx.secondaryParticipantName ? ` → ${tx.secondaryParticipantName}` : ""} · {fmtDateTime(tx.createdAt)}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`pill ${STATUS_PILL[tx.status] ?? ""}`}>{STATUS_LABEL[tx.status] ?? tx.status}</span>
-          {!isAttempt && (
-            <button onClick={() => downloadReceipt(tx)} className="button-outline">
-              <FileDown size={14} /> Télécharger le reçu
-            </button>
+          <h1 className="page-title">{tx.label}</h1>
+          {isInvoicePayment && tx.invoiceNumber && (
+            <p className="page-copy">Facture {tx.invoiceNumber} · {tx.participantName}</p>
           )}
         </div>
+        <HeroStatusBadge tx={tx} />
       </div>
 
       {(tx.status === "pending" || tx.status === "processing") && (
         <div className="panel" style={{ padding: 16, marginBottom: 16, background: "hsl(var(--amber-50))", border: "1px solid hsl(var(--amber-100))" }}>
-          <p className="text-[13px]" style={{ fontWeight: 600 }}>La confirmation du paiement prend plus de temps que prévu si ce statut persiste.</p>
-          <p className="muted" style={{ marginTop: 4 }}>Ne lancez pas un deuxième paiement avant vérification — ce mouvement d'argent est encore suivi par l'opérateur.</p>
+          <p className="text-[13px]" style={{ fontWeight: 600 }}>La confirmation peut prendre quelques minutes.</p>
+          <p className="muted" style={{ marginTop: 4 }}>Ne lancez pas un deuxième paiement avant la vérification — ce mouvement d'argent est encore suivi par l'opérateur.</p>
         </div>
       )}
+      {tx.status === "failed" && (
+        <div className="panel" style={{ padding: 16, marginBottom: 16, background: "hsl(0 84% 97%)", border: "1px solid hsl(0 84% 90%)" }}>
+          <p className="text-[13px]" style={{ fontWeight: 600 }}>Ce paiement a échoué.</p>
+          <p className="muted" style={{ marginTop: 4 }}>
+            {tx.notificationFailureReason ?? "Aucun détail supplémentaire n'a été communiqué par l'opérateur."} Le statut de débit du client n'est pas confirmé — n'invitez pas à relancer immédiatement sans vérification.
+          </p>
+        </div>
+      )}
+
+      {/* Payment hero card */}
+      <article className="panel" style={{ padding: 24, display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ width: 64, height: 64, borderRadius: "50%", background: "hsl(var(--green-50))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <PaymentMethodIcon tx={tx} />
+        </div>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <p style={{ fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 700, color: signed.color, margin: 0, fontVariantNumeric: "tabular-nums" }}>{signed.text}</p>
+          <p style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>
+            {tx.direction === "in" ? "Reçu de " : "Payé à "}{tx.participantName}{tx.secondaryParticipantName ? ` → ${tx.secondaryParticipantName}` : ""}
+          </p>
+          <p className="muted" style={{ marginTop: 2 }}>{tx.method ? tx.method.replace(/_/g, " ") : "—"}{tx.operator ? ` · ${tx.operator}` : ""}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div style={{ width: 40, height: 40, borderRadius: "50%", background: "hsl(var(--gray-100))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Calendar size={18} color="hsl(var(--gray-500))" />
+          </div>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{completion.value}</p>
+            <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>{completion.label}</p>
+          </div>
+        </div>
+      </article>
 
       <div className="panel-grid">
         <article className="panel">
           <div className="section-header"><h3>Détails du paiement</h3></div>
           <dl className="space-y-0">
-            {([
-              ["Référence", tx.reference],
-              ["Type", tx.label],
-              ["Méthode", tx.method ? `${tx.method.replace(/_/g, " ")}${tx.operator ? " · " + tx.operator : ""}` : "—"],
-              ...(maskedPhone ? ([["Téléphone", maskedPhone]] as [string, string][]) : []),
-              ["Devise", tx.currency],
-              ["Frais opérateur", tx.feeUsd != null ? formatAmount(tx.feeUsd, tx.currency) : "non communiqué"],
-            ] as [string, string][]).map(([k, v]) => (
-              <div key={k} className="flex justify-between border-b border-gray-50 py-2">
-                <dt className="text-[13px] text-gray-500">{k}</dt>
-                <dd className="text-[13px] font-semibold text-gray-900" style={{ fontFamily: k === "Référence" ? "monospace" : undefined }}>{v}</dd>
+            <CopyField label="Référence de transaction" value={tx.id} field="tx-ref" copiedField={copiedField} onCopy={copy} mono />
+            {isInvoicePayment && tx.invoiceNumber && tx.externalInvoiceDocId && (
+              <div className="flex justify-between border-b border-gray-50 py-2">
+                <dt className="text-[13px] text-gray-500">Numéro de facture</dt>
+                <dd className="text-[13px] font-semibold" style={{ fontFamily: "monospace" }}>
+                  <button
+                    onClick={() => navigate(`/admin/partner-invoices/${tx.externalInvoiceDocId}`)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "hsl(var(--green-700))", display: "inline-flex", alignItems: "center", gap: 4, padding: 0 }}
+                  >
+                    {tx.invoiceNumber} <ExternalLink size={12} />
+                  </button>
+                </dd>
               </div>
-            ))}
+            )}
+            {isInvoicePayment && (
+              <div className="flex justify-between border-b border-gray-50 py-2">
+                <dt className="text-[13px] text-gray-500">Payeur</dt>
+                <dd className="text-[13px] font-semibold text-gray-900">{tx.payerName ?? "—"}</dd>
+              </div>
+            )}
+            <div className="flex justify-between border-b border-gray-50 py-2">
+              <dt className="text-[13px] text-gray-500">Bénéficiaire</dt>
+              <dd className="text-[13px] font-semibold text-gray-900">{tx.participantName}</dd>
+            </div>
+            {maskedPhone && (
+              <div className="flex justify-between border-b border-gray-50 py-2">
+                <dt className="text-[13px] text-gray-500">Téléphone du bénéficiaire</dt>
+                <dd className="text-[13px] font-semibold text-gray-900">{maskedPhone}</dd>
+              </div>
+            )}
+            <CopyField label="Référence opérateur" value={tx.reference} field="provider-ref" copiedField={copiedField} onCopy={copy} mono />
+            <div className="flex justify-between border-b border-gray-50 py-2">
+              <dt className="text-[13px] text-gray-500">Devise</dt>
+              <dd className="text-[13px] font-semibold text-gray-900">{tx.currency}</dd>
+            </div>
+            <div className="flex justify-between py-2">
+              <dt className="text-[13px] text-gray-500">Frais opérateur</dt>
+              <dd className="text-[13px] font-semibold text-gray-900">{tx.feeUsd != null ? formatAmount(tx.feeUsd, tx.currency) : "non communiqué"}</dd>
+            </div>
           </dl>
+
+          <button
+            onClick={() => setShowDiagnostics((v) => !v)}
+            className="muted"
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, background: "none", border: "none", cursor: "pointer", fontSize: 12 }}
+          >
+            {showDiagnostics ? <ChevronUp size={12} /> : <ChevronDown size={12} />} Diagnostics admin
+          </button>
+          {showDiagnostics && (
+            <dl className="space-y-0" style={{ marginTop: 8, background: "hsl(var(--gray-50))", borderRadius: 10, padding: "4px 10px" }}>
+              {([
+                ["ID interne", tx.id],
+                ["Type technique", tx.type],
+                ["Source", tx.source],
+                ...(tx.partnerId ? ([["Partner ID", tx.partnerId]] as [string, string][]) : []),
+              ] as [string, string][]).map(([k, v]) => (
+                <div key={k} className="flex justify-between border-b border-gray-100 py-1.5 last:border-0">
+                  <dt style={{ fontSize: 11 }} className="text-gray-500">{k}</dt>
+                  <dd style={{ fontSize: 11, fontFamily: "monospace" }}>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
         </article>
 
         <article className="panel">
@@ -657,44 +880,25 @@ export function AdminTransactionDetail() {
           {tx.timeline.length === 0 ? (
             <p className="muted text-sm">Aucun évènement enregistré pour cette transaction.</p>
           ) : (
-            <ul className="space-y-0">
+            <div>
               {tx.timeline.map((step, i) => (
-                <li key={i} className="flex justify-between text-sm py-2 border-b border-gray-50 last:border-0">
-                  <span className="text-gray-600">{step.label}</span>
-                  <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtDateTime(step.at)}</span>
-                </li>
+                <div key={i} className="flex" style={{ gap: 12 }}>
+                  <div className="flex flex-col items-center">
+                    <CheckCircle2 size={16} color="hsl(var(--green-700))" style={{ flexShrink: 0 }} />
+                    {i < tx.timeline.length - 1 && <div style={{ width: 2, flex: 1, minHeight: 20, background: "hsl(var(--green-100))", marginTop: 2 }} />}
+                  </div>
+                  <div style={{ flex: 1, paddingBottom: 14 }}>
+                    <div className="flex justify-between">
+                      <p style={{ fontSize: 13, fontWeight: 600 }}>{step.label}</p>
+                      <p className="muted" style={{ fontSize: 12, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{fmtDateTimeSec(step.at)}</p>
+                    </div>
+                    {TIMELINE_DESCRIPTIONS[step.label] && <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>{TIMELINE_DESCRIPTIONS[step.label]}</p>}
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </article>
-
-        {tx.type === "external_invoice_payment" && (
-          <article className="panel">
-            <div className="section-header"><h3>Notification partenaire</h3></div>
-            {tx.notificationStatus === "not_applicable" ? (
-              <p className="muted text-sm">Sans objet.</p>
-            ) : tx.notificationStatus === "sent" ? (
-              <p className="pill status-active" style={{ display: "inline-block" }}>Aucun échec enregistré</p>
-            ) : (
-              <>
-                <p className="pill status-blocked" style={{ display: "inline-block", marginBottom: 8 }}>Échec de notification</p>
-                {tx.notificationFailureReason && <p className="muted text-sm">{tx.notificationFailureReason}</p>}
-              </>
-            )}
-            {tx.externalInvoiceDocId && (
-              <button
-                onClick={() => resend.mutate(tx.externalInvoiceDocId!)}
-                disabled={resend.isPending}
-                className="button"
-                style={{ marginTop: 12 }}
-              >
-                {resend.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Renvoyer la notification
-              </button>
-            )}
-            {resend.isSuccess && <p className="muted text-sm" style={{ marginTop: 8 }}>Notification renvoyée.</p>}
-            {resend.isError && <p role="alert" className="error-text text-sm" style={{ marginTop: 8 }}>Échec de l'envoi.</p>}
-          </article>
-        )}
 
         <article className="panel">
           <div className="section-header"><h3>Rapprochement</h3></div>
@@ -702,14 +906,37 @@ export function AdminTransactionDetail() {
             <p className="muted text-sm">Pas encore vérifié — le contrôle automatique passe toutes les 6 heures.</p>
           ) : tx.reconciliationStatus === "not_applicable" ? (
             <p className="muted text-sm">Sans objet pour ce type de transaction — aucune source secondaire à comparer.</p>
-          ) : tx.reconciliationStatus === "matched" ? (
-            <p className="pill status-active" style={{ display: "inline-block" }}>
-              <ShieldCheck size={12} /> Rapproché automatiquement
-            </p>
-          ) : tx.reconciliationStatus === "resolved_manually" ? (
+          ) : tx.reconciliationStatus === "matched" || tx.reconciliationStatus === "resolved_manually" ? (
             <>
-              <p className="pill status-active" style={{ display: "inline-block", marginBottom: 8 }}>Résolu manuellement</p>
-              <p className="muted text-sm">Par {tx.reconciliationResolvedByName} — {tx.reconciliationResolutionNote}</p>
+              <div className="panel" style={{ background: "hsl(var(--green-50))", border: "1px solid hsl(var(--green-100))", padding: 12 }}>
+                <p className="pill status-active" style={{ display: "inline-flex" }}>
+                  <ShieldCheck size={12} /> {tx.reconciliationStatus === "matched" ? "Rapproché automatiquement" : "Rapproché manuellement"}
+                </p>
+                <p className="muted" style={{ marginTop: 6 }}>
+                  {tx.reconciliationStatus === "matched"
+                    ? "Le paiement a été rapproché avec succès."
+                    : `Par ${tx.reconciliationResolvedByName} — ${tx.reconciliationResolutionNote}`}
+                </p>
+              </div>
+              {isInvoicePayment && tx.externalInvoiceDocId && (
+                <div className="flex justify-between border-b border-gray-50 py-2" style={{ marginTop: 10 }}>
+                  <dt className="text-[13px] text-gray-500">Facture rapprochée</dt>
+                  <dd className="text-[13px] font-semibold">
+                    <button
+                      onClick={() => navigate(`/admin/partner-invoices/${tx.externalInvoiceDocId}`)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "hsl(var(--green-700))", display: "inline-flex", alignItems: "center", gap: 4, padding: 0 }}
+                    >
+                      {tx.invoiceNumber ?? tx.externalInvoiceDocId} <ExternalLink size={12} />
+                    </button>
+                  </dd>
+                </div>
+              )}
+              {isInvoicePayment && (
+                <div className="flex justify-between py-2">
+                  <dt className="text-[13px] text-gray-500">Réception AROM</dt>
+                  <dd className="muted text-[13px]" style={{ textAlign: "right" }}>Référence de réception non communiquée</dd>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -741,49 +968,145 @@ export function AdminTransactionDetail() {
           )}
         </article>
 
-        <article className="panel">
-          <div className="section-header"><h3>Support</h3></div>
-          {tickets.length > 0 && (
-            <ul className="space-y-0" style={{ marginBottom: 12 }}>
-              {tickets.map((t) => (
-                <li key={t.id} className="text-sm py-2 border-b border-gray-50 last:border-0">
-                  <p>{t.description}</p>
-                  <p className="muted" style={{ fontSize: 11 }}>{t.createdByName} · {fmtDateTime(t.createdAt)}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-          {showTicketForm ? (
-            <div>
-              <label className="form-label" htmlFor="ticket-description">Décrire le problème</label>
-              <textarea id="ticket-description" className="form-textarea" value={ticketDescription} onChange={(e) => setTicketDescription(e.target.value)} rows={3} />
-              <div className="button-row" style={{ marginTop: 8 }}>
-                <button
-                  onClick={() => createTicket.mutate(
-                    { transactionId: tx.id, description: ticketDescription },
-                    { onSuccess: () => { setShowTicketForm(false); setTicketDescription(""); } },
-                  )}
-                  disabled={createTicket.isPending || !ticketDescription.trim()}
-                  className="btn-primary"
-                  style={{ height: 36 }}
-                >
-                  {createTicket.isPending ? <Loader2 size={14} className="animate-spin" /> : "Ouvrir le dossier"}
-                </button>
-                <button onClick={() => setShowTicketForm(false)} className="button-outline">Annuler</button>
+        {hasProof && (
+          <article className="panel">
+            <div className="section-header"><h3>Preuve de paiement</h3></div>
+            <div className="flex" style={{ gap: 16, flexWrap: "wrap" }}>
+              <div style={{
+                width: 96, height: 120, borderRadius: 10, border: "1px dashed hsl(var(--gray-200))",
+                background: "hsl(var(--gray-50))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0, gap: 6,
+              }}>
+                <FileDown size={22} color="hsl(var(--gray-400))" />
+                <p style={{ fontSize: 9, color: "hsl(var(--gray-400))", textAlign: "center", padding: "0 6px" }}>Confirmation Mombongo</p>
               </div>
-              {createTicket.isError && <p role="alert" className="error-text text-sm" style={{ marginTop: 8 }}>Échec de la création.</p>}
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <p style={{ fontSize: 14, fontWeight: 600 }}>Reçu de paiement</p>
+                <p className="muted" style={{ marginTop: 2 }}>Document généré à la demande — pas un reçu officiel de l'opérateur.</p>
+                <div className="button-row" style={{ marginTop: 12 }}>
+                  <button onClick={() => downloadReceipt(tx)} className="button-outline">
+                    <FileDown size={14} /> Télécharger le reçu
+                  </button>
+                  <button onClick={() => copy("receipt-ref", tx.reference)} className="button-outline">
+                    <Copy size={14} /> Copier la référence
+                  </button>
+                </div>
+                {copiedField === "receipt-ref" && <p style={{ fontSize: 11, color: "hsl(var(--green-700))", marginTop: 6 }}>Référence copiée</p>}
+              </div>
             </div>
-          ) : (
-            <button onClick={() => setShowTicketForm(true)} className="button-outline">
-              <Headset size={14} /> Ouvrir un dossier de support
-            </button>
-          )}
-        </article>
+          </article>
+        )}
+
+        {isInvoicePayment && (
+          <article className="panel">
+            <div className="section-header"><h3>Notification partenaire</h3></div>
+            {tx.notificationStatus === "not_applicable" ? (
+              <p className="muted text-sm">Sans objet.</p>
+            ) : tx.notificationStatus === "sent" ? (
+              <p className="pill status-active" style={{ display: "inline-block" }}>Aucun échec enregistré</p>
+            ) : (
+              <>
+                <p className="pill status-blocked" style={{ display: "inline-block", marginBottom: 8 }}>Échec de notification</p>
+                {tx.notificationFailureReason && <p className="muted text-sm">{tx.notificationFailureReason}</p>}
+              </>
+            )}
+          </article>
+        )}
       </div>
 
-      <p className="muted" style={{ fontSize: 12, marginTop: 16 }}>
-        Pour la sécurité des données, les paiements ne peuvent pas être marqués comme payés manuellement.
-      </p>
+      <article className="panel" style={{ marginTop: 16 }}>
+        <div className="section-header"><h3>Actions administrateur</h3></div>
+        <div style={{ padding: "12px 20px 4px", display: "flex", flexDirection: "column", gap: 4 }}>
+          {isInvoicePayment && tx.externalInvoiceDocId && (
+            <div style={{ borderBottom: "1px solid hsl(var(--gray-50))", paddingBottom: 12 }}>
+              {!showResendConfirm ? (
+                <button
+                  onClick={() => setShowResendConfirm(true)}
+                  disabled={resend.isPending}
+                  style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: "8px 0" }}
+                >
+                  <div className="metric-icon tone-green" style={{ marginBottom: 0 }}><Send size={16} /></div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600 }}>Renvoyer la notification</p>
+                    <p className="muted">Renvoyer la confirmation de paiement à AROM.</p>
+                  </div>
+                </button>
+              ) : (
+                <div style={{ padding: "8px 0" }}>
+                  <p style={{ fontSize: 13, fontWeight: 600 }}>Confirmer le renvoi de la notification</p>
+                  <p className="muted" style={{ marginTop: 4 }}>
+                    Statut actuel : {tx.notificationStatus === "sent" ? "notifié" : tx.notificationStatus === "failed" ? "échec de notification" : "sans objet"}.
+                    Seule la notification partenaire sera renvoyée — le paiement ne sera pas retraité et aucune nouvelle transaction ne sera créée.
+                    {alreadyNotified && " AROM a déjà été notifié avec succès pour ce paiement — ne renvoyez que si le partenaire signale ne pas l'avoir reçue."}
+                  </p>
+                  <div className="button-row" style={{ marginTop: 10 }}>
+                    <button
+                      onClick={() => resend.mutate(tx.externalInvoiceDocId!, { onSuccess: () => setShowResendConfirm(false) })}
+                      disabled={resend.isPending}
+                      className="btn-primary"
+                      style={{ height: 36 }}
+                    >
+                      {resend.isPending ? <Loader2 size={14} className="animate-spin" /> : "Confirmer l'envoi"}
+                    </button>
+                    <button onClick={() => setShowResendConfirm(false)} className="button-outline">Annuler</button>
+                  </div>
+                  {resend.isError && <p role="alert" className="error-text text-sm" style={{ marginTop: 8 }}>Échec de l'envoi.</p>}
+                </div>
+              )}
+              {resend.isSuccess && <p className="muted text-sm" style={{ marginTop: 4 }}>Notification renvoyée.</p>}
+            </div>
+          )}
+
+          <div style={{ paddingTop: isInvoicePayment ? 12 : 0 }}>
+            {showTicketForm ? (
+              <div>
+                <label className="form-label" htmlFor="ticket-description">Décrire le problème</label>
+                <textarea id="ticket-description" className="form-textarea" value={ticketDescription} onChange={(e) => setTicketDescription(e.target.value)} rows={3} />
+                <div className="button-row" style={{ marginTop: 8 }}>
+                  <button
+                    onClick={() => createTicket.mutate(
+                      { transactionId: tx.id, description: ticketDescription },
+                      { onSuccess: () => { setShowTicketForm(false); setTicketDescription(""); } },
+                    )}
+                    disabled={createTicket.isPending || !ticketDescription.trim()}
+                    className="btn-primary"
+                    style={{ height: 36 }}
+                  >
+                    {createTicket.isPending ? <Loader2 size={14} className="animate-spin" /> : "Ouvrir le dossier"}
+                  </button>
+                  <button onClick={() => setShowTicketForm(false)} className="button-outline">Annuler</button>
+                </div>
+                {createTicket.isError && <p role="alert" className="error-text text-sm" style={{ marginTop: 8 }}>Échec de la création.</p>}
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowTicketForm(true)}
+                style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: "8px 0" }}
+              >
+                <div className="metric-icon tone-green" style={{ marginBottom: 0 }}><Headset size={16} /></div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600 }}>Ouvrir un dossier de support</p>
+                  <p className="muted">Signaler un problème ou demander une assistance.</p>
+                </div>
+              </button>
+            )}
+            {tickets.length > 0 && (
+              <ul className="space-y-0" style={{ marginTop: 8 }}>
+                {tickets.map((t) => (
+                  <li key={t.id} className="text-sm py-2 border-b border-gray-50 last:border-0">
+                    <p>{t.description}</p>
+                    <p className="muted" style={{ fontSize: 11 }}>{t.createdByName} · {fmtDateTime(t.createdAt)}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <p className="muted" style={{ fontSize: 12, padding: "16px 20px", display: "flex", alignItems: "flex-start", gap: 6 }}>
+          <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          Pour la sécurité des données, les paiements ne peuvent pas être marqués comme payés manuellement.
+        </p>
+      </article>
     </section>
   );
 }

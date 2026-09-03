@@ -215,6 +215,11 @@ export interface TransactionDetail extends TransactionRow {
   reconciliationNote: string | null;
   reconciliationResolvedByName: string | null;
   reconciliationResolutionNote: string | null;
+  /** external_invoice_payment only: the paying partner's display name (e.g. "AROM"), resolved from partners/{partnerId}.name — distinct from participantName, which for this type is the producer/beneficiary, not the payer. */
+  payerName: string | null;
+  /** external_invoice_payment only: the invoice's own externalInvoiceId — a partner-supplied invoice number for partner-API-origin invoices, or the invoice doc's own id for internally-originated ones. Not a Mombongo-invented number. */
+  invoiceNumber: string | null;
+  partnerId: string | null;
 }
 
 async function fetchAttemptDetail(source: "deposit" | "withdrawal", id: string): Promise<TransactionDetail | null> {
@@ -254,6 +259,9 @@ async function fetchAttemptDetail(source: "deposit" | "withdrawal", id: string):
     reconciliationNote: null,
     reconciliationResolvedByName: null,
     reconciliationResolutionNote: null,
+    payerName: null,
+    invoiceNumber: null,
+    partnerId: null,
   };
 }
 
@@ -271,8 +279,12 @@ async function fetchLedgerDetail(id: string): Promise<TransactionDetail | null> 
   let operator: string | null = null;
   let phone: string | null = null;
 
-  if ((data.type === "deposit" || data.type === "withdrawal") && (data.pawapayDepositId || data.pawapayPayoutId)) {
-    const col = data.type === "deposit" ? "deposits" : "withdrawals";
+  // external_invoice_payment reuses the same PawaPay deposit flow as a regular
+  // deposit (pawapayDepositId) — same sub-collection join gives real
+  // "Demande envoyée"/"Confirmé par l'opérateur" timeline steps for free.
+  const depositLike = data.type === "deposit" || data.type === "external_invoice_payment";
+  if ((depositLike || data.type === "withdrawal") && (data.pawapayDepositId || data.pawapayPayoutId)) {
+    const col = depositLike ? "deposits" : "withdrawals";
     const refId = (data.pawapayDepositId ?? data.pawapayPayoutId) as string;
     const subSnap = await getDoc(doc(db, col, refId));
     const sub = subSnap.data();
@@ -288,22 +300,64 @@ async function fetchLedgerDetail(id: string): Promise<TransactionDetail | null> 
 
   let notificationStatus: TransactionDetail["notificationStatus"] = "not_applicable";
   let notificationFailureReason: string | null = null;
+  let payerName: string | null = null;
+  let invoiceNumber: string | null = null;
+  let partnerId: string | null = null;
+  let beneficiaryName: string | null = null;
 
   if (data.type === "external_invoice_payment" && data.externalInvoiceDocId) {
     const invoiceSnap = await getDoc(doc(db, "external_invoices", data.externalInvoiceDocId as string));
     const invoice = invoiceSnap.data();
     if (invoice?.paidAt) timeline.push({ label: "Facture marquée payée", at: invoice.paidAt as Timestamp });
 
+    invoiceNumber = (invoice?.externalInvoiceId as string) ?? null;
+    partnerId = (invoice?.partnerId as string) ?? null;
+
+    const beneficiaryIds: string[] = Array.isArray(invoice?.farmers)
+      ? (invoice!.farmers as { farmerId: string }[]).map((f) => f.farmerId)
+      : invoice?.farmerId ? [invoice.farmerId as string] : [];
+
+    const [partnerSnap, beneficiaryNames] = await Promise.all([
+      partnerId ? getDoc(doc(db, "partners", partnerId)) : Promise.resolve(null),
+      resolveUserNames(beneficiaryIds),
+    ]);
+    payerName = (partnerSnap?.data()?.name as string) ?? partnerId;
+    beneficiaryName = beneficiaryIds.length > 0
+      ? beneficiaryIds.map((uid) => beneficiaryNames.get(uid) ?? uid).join(", ")
+      : null;
+
+    // Only 'payment_complete'-kind failures are relevant here — 'invoice_issued'
+    // failures (a separate notification, sent when the invoice was first
+    // created) would otherwise be misread as a failure of *this* payment
+    // notification.
     const failuresSnap = await getDocs(
-      query(collection(db, "outbound_notification_failures"), where("invoiceId", "==", data.externalInvoiceDocId), limit(1)),
+      query(collection(db, "outbound_notification_failures"), where("invoiceId", "==", data.externalInvoiceDocId), limit(10)),
     );
-    if (!failuresSnap.empty) {
+    const paymentFailure = failuresSnap.docs
+      .map((d) => d.data())
+      .filter((f) => (f.kind ?? "payment_complete") === "payment_complete")
+      .sort((a, b) => (b.failedAt?.seconds ?? 0) - (a.failedAt?.seconds ?? 0))[0];
+
+    const notifiedAt = invoice?.notifiedAt as Timestamp | undefined;
+    // A later successful manual resend does not delete the earlier dead-letter
+    // doc (notifyPartnerPaymentComplete.ts only ever adds notifiedAt) — so a
+    // failure record only still means "currently failing" if nothing has
+    // succeeded since it was written.
+    if (paymentFailure && (!notifiedAt || (paymentFailure.failedAt?.seconds ?? 0) > notifiedAt.seconds)) {
       notificationStatus = "failed";
-      notificationFailureReason = (failuresSnap.docs[0].data().error as string) ?? null;
+      notificationFailureReason = (paymentFailure.error as string) ?? null;
+    } else if (notifiedAt) {
+      notificationStatus = "sent";
+      timeline.push({ label: "AROM notifié", at: notifiedAt });
     } else if (invoice?.status === "paid" || invoice?.status === "failed") {
-      // No failure record recorded for this invoice — inferred success.
-      // There is no explicit "notification sent" timestamp stored anywhere,
-      // so this is a pass/fail inference, not a precise event time.
+      // No 'payment_complete' failure record and no notifiedAt either.
+      // sendSignedPartnerWebhook runs its full retry loop synchronously
+      // within one Cloud Function invocation — it either succeeds or
+      // writes a dead-letter doc before returning, so "neither exists" in
+      // practice means this predates the notifiedAt field's introduction,
+      // not that it's silently still in flight. Absence of a failure
+      // record is the closest honest signal to "delivered" available;
+      // there is no precise sent timestamp to show for it.
       notificationStatus = "sent";
     }
   }
@@ -320,19 +374,22 @@ async function fetchLedgerDetail(id: string): Promise<TransactionDetail | null> 
     method: (data.method as string) ?? null,
     operator,
     phone,
-    participantName: names.get(data.userId as string) ?? names.get(data.fromUid as string) ?? "—",
+    participantName: beneficiaryName ?? names.get(data.userId as string) ?? names.get(data.fromUid as string) ?? "—",
     secondaryParticipantName: data.toUid ? (names.get(data.toUid as string) ?? null) : null,
     reference: txProviderRef(id, data),
     createdAt: (data.createdAt as Timestamp) ?? null,
     externalInvoiceDocId: (data.externalInvoiceDocId as string) ?? null,
     reconciliationStatus: (data.reconciliationStatus as ReconciliationStatus) ?? "unchecked",
     feeUsd: (data.feeUsd as number) ?? null,
-    timeline,
+    timeline: timeline.sort((a, b) => (a.at?.seconds ?? 0) - (b.at?.seconds ?? 0)),
     notificationStatus,
     notificationFailureReason,
     reconciliationNote: (data.reconciliationNote as string) ?? null,
     reconciliationResolvedByName: data.reconciliationResolvedBy ? (names.get(data.reconciliationResolvedBy as string) ?? null) : null,
     reconciliationResolutionNote: (data.reconciliationResolutionNote as string) ?? null,
+    payerName,
+    invoiceNumber,
+    partnerId,
   };
 }
 
@@ -353,8 +410,10 @@ export function useResendPartnerNotification() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (invoiceId: string) => {
-      const fn = httpsCallable<{ invoiceId: string }, { success: boolean }>(functions, "adminRetryPartnerNotification");
-      return (await fn({ invoiceId })).data;
+      const fn = httpsCallable<{ invoiceId: string; kind: "payment_complete" }, { success: boolean; triggeredAt: string }>(
+        functions, "adminRetryPartnerNotification",
+      );
+      return (await fn({ invoiceId, kind: "payment_complete" })).data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-transaction-detail"] });
