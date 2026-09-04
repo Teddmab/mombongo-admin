@@ -462,6 +462,11 @@
      .list-row below which is a dark-hero-only style with no padding,
      no border, and near-invisible translucent-white text on a light
      background. */
+  input[type="radio"],
+  input[type="checkbox"] {
+    accent-color: hsl(var(--green-700));
+  }
+
   .select-row {
     display: flex;
     align-items: center;
@@ -848,6 +853,63 @@
     font-size: 13px;
     color: hsl(var(--amber-900));
     line-height: 1.5;
+  }
+
+  .hint-box.info {
+    background: hsl(var(--info) / 10%);
+    border-color: hsl(var(--info) / 25%);
+    color: hsl(217 60% 30%);
+  }
+
+  /* ── Multi-step wizard: numbered circle stepper ───────────── */
+  .step-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1.5px solid hsl(var(--gray-200));
+    color: hsl(var(--gray-400));
+    background: white;
+    flex-shrink: 0;
+  }
+
+  .step-circle.current {
+    background: hsl(var(--green-700));
+    border-color: hsl(var(--green-700));
+    color: white;
+  }
+
+  .step-circle.done {
+    background: hsl(var(--green-50));
+    border-color: hsl(var(--green-700));
+    color: hsl(var(--green-700));
+  }
+
+  .step-circle-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--gray-400));
+    white-space: nowrap;
+  }
+
+  .step-circle-label.current {
+    color: hsl(var(--gray-900));
+  }
+
+  .step-circle-line {
+    flex: 1;
+    height: 1.5px;
+    background: hsl(var(--gray-200));
+    margin: 0 8px;
+    margin-bottom: 20px;
+  }
+
+  .step-circle-line.done {
+    background: hsl(var(--green-700));
   }
 
   .login-hero {
