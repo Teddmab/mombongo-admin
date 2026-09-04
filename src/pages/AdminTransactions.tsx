@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Download, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Send, Loader2, FileDown, Headset,
   ShieldAlert, ShieldCheck, RefreshCw, Wallet, CheckCircle2, Hourglass, Scale, Search, X,
-  Smartphone, Copy, Info, ChevronDown, ChevronUp, Calendar, ExternalLink, XCircle, RotateCcw, ArrowLeft,
+  Smartphone, Copy, Info, ChevronDown, ChevronUp, ChevronRight, Calendar, ExternalLink, XCircle, RotateCcw,
 } from "lucide-react";
 import {
   useTransactions, useTransactionDetail, useResendPartnerNotification,
@@ -746,18 +746,14 @@ export function AdminTransactionDetail() {
       <nav aria-label="Fil d'ariane" className="flex items-center gap-1.5" style={{ fontSize: 13 }}>
         <span style={{ color: "hsl(var(--green-700))", fontWeight: 600 }}>Finance</span>
         <span className="muted">/</span>
-        <button onClick={() => navigate("/admin/transactions")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "hsl(var(--green-700))", fontWeight: 600 }}>
+        <button onClick={() => navigate(-1)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "hsl(var(--green-700))", fontWeight: 600 }}>
           Transactions
         </button>
         <span className="muted">/</span>
         <span className="muted">{tx.reference.slice(0, 20)}</span>
       </nav>
 
-      <button onClick={() => navigate(-1)} className="button-outline" style={{ height: 42, marginTop: 12, marginBottom: 4, width: "fit-content" }}>
-        <ArrowLeft size={14} /> Transactions
-      </button>
-
-      <div className="page-header" style={{ marginTop: 8 }}>
+      <div className="page-header" style={{ marginTop: 12 }}>
         <div>
           <div className="section-kicker">{tx.label}</div>
           <h1 className="page-title">{tx.label}</h1>
@@ -806,7 +802,10 @@ export function AdminTransactionDetail() {
         </div>
       </article>
 
-      <div className="panel-grid">
+      {/* Fixed 2-column grid, not the generic auto-fit .panel-grid — at the
+          1536px reference width auto-fit crams all four cards into one row
+          since each already clears its 300px minimum. */}
+      <div className="panel-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
         <article className="panel">
           <div className="section-header"><h3>Détails du paiement</h3></div>
           <dl className="space-y-0">
@@ -996,28 +995,20 @@ export function AdminTransactionDetail() {
           </article>
         )}
 
-        {isInvoicePayment && (
+        {isInvoicePayment && tx.notificationStatus === "failed" && (
           <article className="panel">
             <div className="section-header"><h3>Notification partenaire</h3></div>
-            {tx.notificationStatus === "not_applicable" ? (
-              <p className="muted text-sm">Sans objet.</p>
-            ) : tx.notificationStatus === "sent" ? (
-              <p className="pill status-active" style={{ display: "inline-block" }}>Aucun échec enregistré</p>
-            ) : (
-              <>
-                <p className="pill status-blocked" style={{ display: "inline-block", marginBottom: 8 }}>Échec de notification</p>
-                {tx.notificationFailureReason && <p className="muted text-sm">{tx.notificationFailureReason}</p>}
-              </>
-            )}
+            <p className="pill status-blocked" style={{ display: "inline-block", marginBottom: 8 }}>Échec de notification</p>
+            {tx.notificationFailureReason && <p className="muted text-sm">{tx.notificationFailureReason}</p>}
           </article>
         )}
       </div>
 
       <article className="panel" style={{ marginTop: 16 }}>
         <div className="section-header"><h3>Actions administrateur</h3></div>
-        <div style={{ padding: "12px 20px 4px", display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ padding: "12px 20px 4px", display: "grid", gridTemplateColumns: isInvoicePayment && tx.externalInvoiceDocId ? "1fr 1fr" : "1fr", gap: 4 }}>
           {isInvoicePayment && tx.externalInvoiceDocId && (
-            <div style={{ borderBottom: "1px solid hsl(var(--gray-50))", paddingBottom: 12 }}>
+            <div style={{ borderRight: "1px solid hsl(var(--gray-50))", paddingRight: 20, paddingBottom: 12 }}>
               {!showResendConfirm ? (
                 <button
                   onClick={() => setShowResendConfirm(true)}
@@ -1029,6 +1020,7 @@ export function AdminTransactionDetail() {
                     <p style={{ fontSize: 14, fontWeight: 600 }}>Renvoyer la notification</p>
                     <p className="muted">Renvoyer la confirmation de paiement à AROM.</p>
                   </div>
+                  <ChevronRight size={16} color="hsl(var(--gray-400))" />
                 </button>
               ) : (
                 <div style={{ padding: "8px 0" }}>
@@ -1056,7 +1048,7 @@ export function AdminTransactionDetail() {
             </div>
           )}
 
-          <div style={{ paddingTop: isInvoicePayment ? 12 : 0 }}>
+          <div style={{ paddingLeft: isInvoicePayment && tx.externalInvoiceDocId ? 20 : 0 }}>
             {showTicketForm ? (
               <div>
                 <label className="form-label" htmlFor="ticket-description">Décrire le problème</label>
@@ -1087,6 +1079,7 @@ export function AdminTransactionDetail() {
                   <p style={{ fontSize: 14, fontWeight: 600 }}>Ouvrir un dossier de support</p>
                   <p className="muted">Signaler un problème ou demander une assistance.</p>
                 </div>
+                <ChevronRight size={16} color="hsl(var(--gray-400))" />
               </button>
             )}
             {tickets.length > 0 && (

@@ -416,14 +416,14 @@ describe("AdminTransactionDetail", () => {
       refetch: vi.fn(),
     } as never);
     render(
-      <MemoryRouter initialEntries={["/admin/transactions/tx1"]}>
+      <MemoryRouter initialEntries={["/admin/transactions", "/admin/transactions/tx1"]} initialIndex={1}>
         <Routes>
           <Route path="/admin/transactions" element={<AdminTransactions />} />
           <Route path="/admin/transactions/:id" element={<AdminTransactionDetail />} />
         </Routes>
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getAllByRole("button", { name: /transactions/i })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Transactions" }));
     expect(screen.getByText("Suivez les mouvements d'argent et les paiements.")).toBeInTheDocument();
   });
 });
