@@ -605,8 +605,9 @@
 
   .admin-sidebar {
     width: 240px;
-    background: hsl(var(--green-900));
-    color: white;
+    background: hsl(var(--gray-50));
+    color: hsl(var(--gray-900));
+    border-right: 1px solid hsl(var(--gray-200));
     display: flex;
     flex-direction: column;
     padding: 16px;
@@ -628,15 +629,16 @@
     font-family: var(--font-display);
     font-size: 16px;
     font-weight: 900;
-    margin: 4px 0 0;
+    margin: 0;
+    color: hsl(var(--gray-900));
   }
 
   .brand-kicker {
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: hsl(var(--amber-400));
+    color: hsl(var(--amber-500));
   }
 
   .sidebar-links {
@@ -655,22 +657,32 @@
     border-radius: 10px;
     font-size: 13px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.7);
+    color: hsl(var(--gray-700));
     text-decoration: none;
     transition: background 0.15s, color 0.15s;
   }
 
-  .sidebar-link:hover,
+  .sidebar-link:hover {
+    background: hsl(var(--gray-100));
+  }
+
   .sidebar-link.active {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
+    background: hsl(var(--green-50));
+    color: hsl(var(--green-700));
+    font-weight: 700;
   }
 
   .sidebar-footer {
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid hsl(var(--gray-200));
     padding-top: 16px;
     margin-top: 16px;
     font-size: 12px;
+  }
+
+  .sidebar-footer-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .sidebar-footer button {
@@ -680,7 +692,7 @@
     margin-top: 12px;
     font-size: 12px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.6);
+    color: hsl(var(--gray-500));
     background: none;
     border: none;
     cursor: pointer;
@@ -689,7 +701,7 @@
   }
 
   .sidebar-footer button:hover {
-    color: white;
+    color: hsl(var(--gray-900));
   }
 
   .admin-header {
@@ -903,7 +915,7 @@
     display: none;
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.6);
+    color: hsl(var(--gray-500));
     cursor: pointer;
     padding: 4px;
   }
@@ -928,7 +940,7 @@
     border: none;
     cursor: pointer;
     padding: 10px 6px 4px;
-    color: rgba(255, 255, 255, 0.45);
+    color: hsl(var(--gray-400));
   }
 
   .sidebar-group-label {
@@ -983,6 +995,13 @@
 
   .sidebar-menu-btn:hover {
     background: hsl(var(--gray-100));
+  }
+
+  /* Pages with their own .page-header render a bare menu button (no
+     AdminHeader bar) — give it breathing room since it's not sitting
+     inside a padded header row. */
+  .admin-main-menu-btn {
+    margin: 12px 0 0 12px;
   }
 
   /* ── ADM-UI-01: command center ────────────────────────────── */
