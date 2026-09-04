@@ -364,10 +364,10 @@ export function CreateAssistedInvoiceModal({ onClose }: { onClose: () => void })
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "24px 16px", overflowY: "auto" }}
+      style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "32px 20px", overflowY: "auto" }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-    <section className="page" style={{ background: "hsl(var(--background, 42 25% 95%))", borderRadius: 20, padding: 24, width: "100%", maxWidth: 1040, boxShadow: "var(--shadow-elevated)" }}>
+    <section className="page" style={{ background: "hsl(var(--background, 42 25% 95%))", borderRadius: 20, padding: 24, width: "100%", maxWidth: 920, boxShadow: "var(--shadow-elevated)" }}>
       <div className="page-header">
         <div>
           <div className="section-kicker">Factures partenaires</div>
