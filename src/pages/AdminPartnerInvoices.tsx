@@ -7,6 +7,7 @@ import {
   usePartnerInvoices, usePartnerInvoiceDetail, useFailedNotifications, useRetryPartnerNotification,
   ORIGIN_LABEL, CONSENT_LABEL, type InvoiceOrigin, type PartnerInvoiceRow, type PartnerInvoiceDetail,
 } from "@/hooks/usePartnerInvoices";
+import { CreateAssistedInvoiceModal } from "@/pages/AdminCreateAssistedInvoice";
 
 const STATUS_OPTIONS = ["pending", "checkout_created", "paid", "failed"] as const;
 
@@ -53,6 +54,7 @@ export function AdminPartnerInvoices() {
   const [statusFilter, setStatusFilter] = useState("");
   const [periodFilter, setPeriodFilter] = useState<"" | "month">("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const kpis = useMemo(() => ({
     pendingCount: all.filter((r) => r.status === "pending" || r.status === "checkout_created").length,
@@ -85,10 +87,12 @@ export function AdminPartnerInvoices() {
           <h1 className="page-title">Factures partenaires</h1>
           <p className="page-copy">Suivez les factures des agriculteurs et leur paiement.</p>
         </div>
-        <button onClick={() => navigate("/admin/partner-invoices/new")} className="btn-primary" style={{ height: 36 }}>
+        <button onClick={() => setShowCreateModal(true)} className="btn-primary" style={{ height: 36 }}>
           <Plus size={14} /> Créer une facture
         </button>
       </div>
+
+      {showCreateModal && <CreateAssistedInvoiceModal onClose={() => setShowCreateModal(false)} />}
 
       <div className="stats-grid">
         <div className="metric-card">

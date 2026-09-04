@@ -5,6 +5,10 @@ import { AdminPartnerInvoices, AdminPartnerInvoiceDetail } from "@/pages/AdminPa
 import {
   usePartnerInvoices, usePartnerInvoiceDetail, useFailedNotifications, useRetryPartnerNotification,
 } from "@/hooks/usePartnerInvoices";
+import {
+  useEligibleFarmers, useEligibleMerchants, useFarmerListings, useExchangeRatePreview,
+  useCreateAssistedInvoice, useAdminCreatePerson,
+} from "@/hooks/useAssistedInvoice";
 
 vi.mock("@/hooks/usePartnerInvoices", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/usePartnerInvoices")>("@/hooks/usePartnerInvoices");
@@ -17,10 +21,31 @@ vi.mock("@/hooks/usePartnerInvoices", async () => {
   };
 });
 
+// The "Créer une facture" button opens CreateAssistedInvoiceModal in-page (not a route) —
+// its own hooks need mocking here too so mounting it doesn't hit real Firestore calls.
+vi.mock("@/hooks/useAssistedInvoice", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useAssistedInvoice")>("@/hooks/useAssistedInvoice");
+  return {
+    ...actual,
+    useEligibleFarmers: vi.fn(),
+    useEligibleMerchants: vi.fn(),
+    useFarmerListings: vi.fn(),
+    useExchangeRatePreview: vi.fn(),
+    useCreateAssistedInvoice: vi.fn(),
+    useAdminCreatePerson: vi.fn(),
+  };
+});
+
 const mockedList = vi.mocked(usePartnerInvoices);
 const mockedDetail = vi.mocked(usePartnerInvoiceDetail);
 const mockedFailures = vi.mocked(useFailedNotifications);
 const mockedRetry = vi.mocked(useRetryPartnerNotification);
+const mockedAssistedFarmers = vi.mocked(useEligibleFarmers);
+const mockedAssistedMerchants = vi.mocked(useEligibleMerchants);
+const mockedAssistedListings = vi.mocked(useFarmerListings);
+const mockedAssistedRate = vi.mocked(useExchangeRatePreview);
+const mockedAssistedCreate = vi.mocked(useCreateAssistedInvoice);
+const mockedAssistedCreatePerson = vi.mocked(useAdminCreatePerson);
 
 const API_ROW = {
   id: "inv1", origin: "partner_api" as const, partnerId: "arom", farmerName: null, farmerAvatarUrl: null, merchantAvatarUrl: null,
@@ -55,6 +80,12 @@ describe("AdminPartnerInvoices list", () => {
     vi.clearAllMocks();
     mockedFailures.mockReturnValue({ data: [], isLoading: false, error: null } as never);
     mockedRetry.mockReturnValue({ mutate: vi.fn(), isPending: false } as never);
+    mockedAssistedFarmers.mockReturnValue({ data: { eligible: [], totalCount: 0 }, isLoading: false } as never);
+    mockedAssistedMerchants.mockReturnValue({ data: { eligible: [], totalCount: 0 }, isLoading: false } as never);
+    mockedAssistedListings.mockReturnValue({ data: [], isLoading: false } as never);
+    mockedAssistedRate.mockReturnValue({ data: 2800 } as never);
+    mockedAssistedCreate.mockReturnValue({ mutateAsync: vi.fn(), isPending: false, isError: false, error: null } as never);
+    mockedAssistedCreatePerson.mockReturnValue({ mutateAsync: vi.fn(), isPending: false, isError: false, error: null } as never);
   });
 
   it("shows an error state", () => {
@@ -73,10 +104,22 @@ describe("AdminPartnerInvoices list", () => {
     expect(screen.getByText("arom")).toBeInTheDocument(); // partner_api row falls back to partnerId, not a fake name
   });
 
-  it("links to the assisted-invoice creation wizard", () => {
+  it("opens the assisted-invoice creation wizard as an in-page modal, not a route navigation", () => {
     mockedList.mockReturnValue({ data: [], isLoading: false, error: null } as never);
     renderList();
-    expect(screen.getByText(/créer une facture/i).closest("button")).toBeInTheDocument();
+    expect(screen.queryByText("Créer une facture avec assistance")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText(/créer une facture/i).closest("button")!);
+    expect(screen.getByText("Créer une facture avec assistance")).toBeInTheDocument();
+    // Still on the invoices list underneath — no route change happened.
+    expect(screen.getByText("Suivez les factures des agriculteurs et leur paiement.")).toBeInTheDocument();
+  });
+
+  it("closes the assisted-invoice modal without navigating away", () => {
+    mockedList.mockReturnValue({ data: [], isLoading: false, error: null } as never);
+    renderList();
+    fireEvent.click(screen.getByText(/créer une facture/i).closest("button")!);
+    fireEvent.click(screen.getByText("Annuler et revenir"));
+    expect(screen.queryByText("Créer une facture avec assistance")).not.toBeInTheDocument();
   });
 
   it("computes KPI cards from real invoice data (pending count/amount, paid this month, failed)", () => {
