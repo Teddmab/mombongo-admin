@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSidebarDrawer } from "@/components/layout/sidebar-drawer-context";
+import { Avatar } from "@/components/Avatar";
 
 const INVESTOR_APP_URL = "https://app.mombongo.coop";
 
@@ -153,10 +154,10 @@ export function AdminSidebar() {
       <div className="admin-brand">
         <div className="admin-brand-row">
           <a href={INVESTOR_APP_URL} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-lg">🌿</div>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ background: "hsl(var(--green-50))" }}>🌿</div>
             <div>
-              <div className="brand-kicker">Mombongo Coop</div>
-              <h1>Admin</h1>
+              <h1>Mombongo</h1>
+              <div className="brand-kicker">Admin</div>
             </div>
           </a>
           <button type="button" className="sidebar-close" onClick={close} aria-label="Fermer le menu">
@@ -183,10 +184,17 @@ export function AdminSidebar() {
       </nav>
 
       <div className="sidebar-footer">
-        <div className="brand-kicker">Session</div>
-        <p style={{ margin: "8px 0 2px", fontWeight: 700 }}>
-          {user?.displayName ?? user?.email ?? "Administrateur"}
-        </p>
+        <div className="sidebar-footer-row">
+          <Avatar name={user?.displayName ?? user?.email ?? "Administrateur"} size={36} />
+          <div style={{ minWidth: 0 }}>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {user?.displayName ?? "Administrateur"}
+            </p>
+            <p className="muted" style={{ margin: 0, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {user?.email ?? ""}
+            </p>
+          </div>
+        </div>
         <button type="button" onClick={() => void signOut()}>
           <LogOut size={16} />
           Déconnexion
