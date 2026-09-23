@@ -58,6 +58,9 @@ vi.mock("firebase/auth", () => ({
   sendPasswordResetEmail: vi.fn(),
   updateProfile: vi.fn(),
   signOut: vi.fn(),
+  // Default: no admin claim. Individual tests override via
+  // vi.mocked(getIdTokenResult).mockResolvedValueOnce({ claims: {...} }).
+  getIdTokenResult: vi.fn().mockResolvedValue({ claims: {} }),
 }));
 
 vi.mock("firebase/firestore", () => ({
