@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { X, Sprout, MapPin, Clock, TrendingUp } from "lucide-react";
+import { X, Sprout, MapPin, Clock, TrendingUp, Plus } from "lucide-react";
 import {
   useFarmers, useFarmerDetail, segmentFilter,
   type FarmerListItem, type FarmerSegment,
 } from "@/hooks/useFarmers";
+import { CreateFarmerModal } from "@/pages/AdminCreateFarmer";
 
 const SEGMENTS: { key: FarmerSegment; label: string }[] = [
   { key: "all", label: "Tous" },
@@ -31,6 +32,7 @@ export function AdminFarmers() {
   const [search, setSearch] = useState("");
   const [segment, setSegment] = useState<FarmerSegment>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -64,6 +66,9 @@ export function AdminFarmers() {
           <h1 className="page-title">Agriculteurs</h1>
           <p className="page-copy">Suivez les profils, exploitations et activités des agriculteurs.</p>
         </div>
+        <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+          <Plus size={14} /> Créer un agriculteur
+        </button>
       </div>
 
       <div className="stats-grid">
@@ -174,6 +179,8 @@ export function AdminFarmers() {
           <FarmerPreview farmer={selected} onClose={() => setSelectedId(null)} onOpenProfile={() => navigate(`/admin/farmers/${selected.id}`)} />
         )}
       </div>
+
+      {showCreateModal && <CreateFarmerModal onClose={() => setShowCreateModal(false)} />}
     </section>
   );
 }
