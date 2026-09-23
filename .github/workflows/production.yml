@@ -158,14 +158,18 @@ jobs:
 
       - name: Deploy to Cloudflare Pages
         id: deploy
-        uses: cloudflare/pages-action@v1
+        # cloudflare/pages-action was archived by Cloudflare (2024-10-21,
+        # the repo now 404s — "Unable to resolve action" is what that
+        # looks like from a workflow run). wrangler-action running the
+        # equivalent `pages deploy` command is Cloudflare's official
+        # migration path. deployment-url is still the output name.
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: mombongo-admin # must match your CF Pages project name
-          directory: dist
-          # Deploying main branch = production alias → mombongo-admin.pages.dev
-          branch: main
+          # project-name must match your CF Pages project name. Deploying
+          # main branch = production alias → mombongo-admin.pages.dev
+          command: pages deploy dist --project-name=mombongo-admin --branch=main
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
   # ─────────────────────────────────────────
