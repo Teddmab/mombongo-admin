@@ -13,6 +13,7 @@
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:unit:watch": "vitest --config vitest.unit.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "emulator": "node scripts/emulator/start.mjs",
     "test:ci": "bun run test:unit",
     "test:e2e": "echo \"No E2E tests configured yet\"",
     "test:smoke": "echo \"No smoke tests configured yet\"",
