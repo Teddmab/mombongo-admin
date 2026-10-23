@@ -205,7 +205,7 @@ function SummaryRow({ icon, iconColor, iconBg, label, value, badge, last }: {
 /** Rendered as a modal from AdminPartnerInvoices, not a dedicated route — closing (X, backdrop, "Annuler et revenir")
  * just dismisses it. Draft-save (see saveDraft()) is the explicit way to keep in-progress work; closing without
  * saving one discards it, same as any other unsaved form. */
-export function CreateAssistedInvoiceModal({ onClose }: { onClose: () => void }) {
+export function CreateAssistedInvoiceModal({ onClose, initialFarmerId = null }: { onClose: () => void; initialFarmerId?: string | null }) {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>(1);
 
@@ -238,6 +238,20 @@ export function CreateAssistedInvoiceModal({ onClose }: { onClose: () => void })
   const farmers = [...fetchedFarmers, ...createdFarmers.filter((c) => !fetchedFarmers.some((f) => f.uid === c.uid))];
   const merchants = [...fetchedMerchants, ...createdMerchants.filter((c) => !fetchedMerchants.some((m) => m.uid === c.uid))];
   const farmersTotalCount = (farmersResult?.totalCount ?? 0) + createdFarmers.length;
+
+  // A deep-linked farmer (initialFarmerId) is pre-selected only once the eligible list has loaded and actually
+  // offers them (KYC approved); otherwise nothing is selected and the reason is shown. Adjusted during render
+  // (React's "storing information from previous renders" pattern), applied at most once.
+  const [initialFarmerResolved, setInitialFarmerResolved] = useState(!initialFarmerId);
+  const [initialFarmerIneligible, setInitialFarmerIneligible] = useState(false);
+  if (!initialFarmerResolved && !farmersLoading && farmersResult) {
+    setInitialFarmerResolved(true);
+    if (fetchedFarmers.some((f) => f.uid === initialFarmerId)) {
+      setFarmerRows((rows) => rows.map((r, i) => (i === 0 && !r.farmerId ? { ...r, farmerId: initialFarmerId } : r)));
+    } else {
+      setInitialFarmerIneligible(true);
+    }
+  }
   const merchantsTotalCount = (merchantsResult?.totalCount ?? 0) + createdMerchants.length;
 
   const filledFarmerRows = farmerRows.filter((r): r is FarmerRow & { farmerId: string } => !!r.farmerId);
@@ -401,6 +415,11 @@ export function CreateAssistedInvoiceModal({ onClose }: { onClose: () => void })
           {step === 1 && (
             <>
               <div className="section-header"><h3>1. Sélectionner l'agriculteur</h3></div>
+              {initialFarmerIneligible && (
+                <p role="status" className="muted text-sm" style={{ marginBottom: 12 }}>
+                  Cet agriculteur ne peut pas encore être facturé : son KYC n'est pas approuvé. Choisissez un autre agriculteur ou finalisez d'abord son KYC.
+                </p>
+              )}
               {isCooperative || farmerRows.length > 1 ? (
                 <p className="muted text-sm" style={{ marginBottom: 12 }}>
                   Ajoutez plusieurs agriculteurs s'ils vendent leur récolte ensemble, en coopérative.

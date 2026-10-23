@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { RotateCw, Plus, Search, X, Clock, CheckCircle2, AlertTriangle, Wallet } from "lucide-react";
 import { formatUsd } from "@/lib/utils";
 import { Avatar } from "@/components/Avatar";
@@ -54,7 +54,16 @@ export function AdminPartnerInvoices() {
   const [statusFilter, setStatusFilter] = useState("");
   const [periodFilter, setPeriodFilter] = useState<"" | "month">("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  // `?create=1[&farmerId=…]` is the deep link from assistedInvoicePath() (e.g. the farmer profile's
+  // "Créer une facture"); it opens the same modal with that farmer pre-selected.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showCreateModal, setShowCreateModal] = useState(() => searchParams.get("create") === "1");
+  const [initialFarmerId] = useState(() => searchParams.get("farmerId"));
+
+  function closeCreateModal() {
+    setShowCreateModal(false);
+    if (searchParams.has("create") || searchParams.has("farmerId")) setSearchParams({}, { replace: true });
+  }
 
   const kpis = useMemo(() => ({
     pendingCount: all.filter((r) => r.status === "pending" || r.status === "checkout_created").length,
@@ -92,7 +101,7 @@ export function AdminPartnerInvoices() {
         </button>
       </div>
 
-      {showCreateModal && <CreateAssistedInvoiceModal onClose={() => setShowCreateModal(false)} />}
+      {showCreateModal && <CreateAssistedInvoiceModal onClose={closeCreateModal} initialFarmerId={initialFarmerId} />}
 
       <div className="stats-grid">
         <div className="metric-card">
