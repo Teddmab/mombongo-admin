@@ -156,6 +156,14 @@ jobs:
           name: dist-production
           path: dist/
 
+      # wrangler-action installs wrangler with `npm i` in its working directory.
+      # Run from the repo root, npm 10 resolves this repo's whole dependency tree
+      # (no package-lock.json) and crashes in arborist ("Cannot read properties of
+      # null (reading 'edgesOut')", run 40030256150). An empty package.json in a
+      # separate directory keeps that install to wrangler alone.
+      - name: Prepare isolated Wrangler directory
+        run: mkdir -p .cf-deploy && echo '{"private":true}' > .cf-deploy/package.json
+
       - name: Deploy to Cloudflare Pages
         id: deploy
         # cloudflare/pages-action was archived by Cloudflare (2024-10-21,
@@ -169,7 +177,8 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # project-name must match your CF Pages project name. Deploying
           # main branch = production alias → mombongo-admin.pages.dev
-          command: pages deploy dist --project-name=mombongo-admin --branch=main
+          workingDirectory: .cf-deploy
+          command: pages deploy ../dist --project-name=mombongo-admin --branch=main
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           # wrangler-action infers its package manager from the lockfile; this
           # repo's bun.lock makes it pick bun, which is not installed in this

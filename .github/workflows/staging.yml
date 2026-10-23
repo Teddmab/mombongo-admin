@@ -116,6 +116,10 @@ jobs:
           name: dist-staging
           path: dist/
 
+      # Same as production.yml: keep wrangler's `npm i` out of this repo's dependency tree.
+      - name: Prepare isolated Wrangler directory
+        run: mkdir -p .cf-deploy && echo '{"private":true}' > .cf-deploy/package.json
+
       - name: Deploy to Cloudflare Pages
         id: deploy
         # cloudflare/pages-action was archived by Cloudflare (2024-10-21,
@@ -126,7 +130,8 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # Deploys to the "staging" branch alias → staging.mombongo-admin.pages.dev
-          command: pages deploy dist --project-name=mombongo-admin --branch=staging
+          workingDirectory: .cf-deploy
+          command: pages deploy ../dist --project-name=mombongo-admin --branch=staging
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           # Same as production.yml: bun.lock would make wrangler-action pick
           # bun, which this job does not install.

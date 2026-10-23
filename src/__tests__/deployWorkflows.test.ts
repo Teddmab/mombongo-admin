@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 
 // Regression guard for the 2026-09-23 production deploy failure (run 35920190398):
 // cloudflare/wrangler-action infers its package manager from bun.lock and tried to
-// run `bun` in a job that never installed it. Line-based on purpose (no YAML
+// run `bun` in a job that never installed it; then (run 40030256150) npm 10 crashed
+// resolving this repo's whole dependency tree while installing wrangler. Line-based on purpose (no YAML
 // dependency in this repo); actionlint covers syntax separately.
 
 const WORKFLOW_DIR = path.resolve(__dirname, "../../.github/workflows");
@@ -48,6 +49,18 @@ describe("deploy workflows", () => {
         for (const step of wranglerSteps(job.body)) {
           expect(step).toMatch(/packageManager:\s*npm\b/);
           expect(step).toMatch(/wranglerVersion:\s*"\d+\.\d+\.\d+"/);
+        }
+      });
+
+      it(`${file} › ${job.name}: wrangler is installed in an isolated directory, not this repo's dependency tree`, () => {
+        for (const step of wranglerSteps(job.body)) {
+          const dir = /workingDirectory:\s*(\S+)/.exec(step)?.[1];
+          expect(dir, "wrangler-action needs a workingDirectory").toBeTruthy();
+          expect(dir).not.toMatch(/^\.?\/?$/);
+          // The job must give that directory its own package.json before the action runs.
+          const before = job.body.slice(0, job.body.indexOf(step));
+          expect(before).toContain(`> ${dir}/package.json`);
+          expect(step).toMatch(/command:\s*pages deploy \.\.\/dist\b/);
         }
       });
 
