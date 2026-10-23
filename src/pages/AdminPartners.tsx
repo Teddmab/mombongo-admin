@@ -23,6 +23,8 @@ interface PartnerRow {
   merchantUid?: string;
   hmacSecret?: string;
   outboundHmacSecret?: string;
+  /** null/unset = unrestricted (every active listing visible) — never conflate that with an explicit [], which means nothing. */
+  allowedCommodities?: string[] | null;
   createdAt?: { seconds: number };
 }
 
@@ -44,6 +46,16 @@ const adminUpdatePartnerWebhookUrlFn = httpsCallable<
   { partnerId: string; webhookUrl: string },
   { success: true }
 >(functions, "adminUpdatePartnerWebhookUrl");
+
+const adminUpdatePartnerAllowedCommoditiesFn = httpsCallable<
+  { partnerId: string; allowedCommodities: string[] | null },
+  { success: true }
+>(functions, "adminUpdatePartnerAllowedCommodities");
+
+/** "Ananas, Manioc" -> ["Ananas", "Manioc"] — trims, drops empties, dedupes. Empty input -> [] (nothing), never null (unrestricted) — clearing the restriction is a separate, explicit action. */
+function parseCommodityList(raw: string): string[] {
+  return Array.from(new Set(raw.split(",").map((s) => s.trim()).filter(Boolean)));
+}
 
 // Mirrors the server-side check in mombongo-functions/src/lib/validateWebhookUrl.ts
 // for immediate feedback — the Cloud Function call is still the authoritative
@@ -171,6 +183,7 @@ function ProvisionPartnerForm({ onProvisioned }: { onProvisioned: () => void }) 
   const [partnerId, setPartnerId] = useState("");
   const [partnerName, setPartnerName] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
+  const [allowedCommoditiesInput, setAllowedCommoditiesInput] = useState("");
   const [testMode, setTestMode] = useState(true);
   const [merchantMode, setMerchantMode] = useState<MerchantMode>("new");
   const [merchantEmail, setMerchantEmail] = useState("");
@@ -204,10 +217,15 @@ function ProvisionPartnerForm({ onProvisioned }: { onProvisioned: () => void }) 
     setStatus("loading");
     setError(null);
     try {
+      const allowedCommodities = parseCommodityList(allowedCommoditiesInput);
       const res = await adminProvisionPartnerFn({
         partnerId: partnerId.trim(),
         partnerName: partnerName.trim(),
         webhookUrl: webhookUrl.trim() || undefined,
+        // Left blank at creation time = unrestricted (matches every
+        // partner provisioned before this field existed) — an admin who
+        // wants to scope it types commodities in explicitly.
+        allowedCommodities: allowedCommodities.length > 0 ? allowedCommodities : null,
         testMode,
         merchantMode,
         ...(merchantMode === "new"
@@ -272,6 +290,14 @@ function ProvisionPartnerForm({ onProvisioned }: { onProvisioned: () => void }) 
         </Field>
         <Field label="URL du webhook (facultatif — peut être ajoutée plus tard)">
           <input value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} className="h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white w-full" placeholder="https://…" />
+        </Field>
+        <Field label="Produits visibles par ce partenaire (séparés par des virgules — vide = tous les produits)">
+          <input
+            value={allowedCommoditiesInput}
+            onChange={(e) => setAllowedCommoditiesInput(e.target.value)}
+            className="h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white w-full"
+            placeholder="Ananas, Manioc"
+          />
         </Field>
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
           <input type="checkbox" checked={testMode} onChange={(e) => setTestMode(e.target.checked)} />
@@ -450,6 +476,7 @@ export function AdminPartnerDetail() {
       <article className="panel" style={{ maxWidth: 560 }}>
         <dl>
           <WebhookUrlRow partnerId={partner.id} currentUrl={partner.webhookUrl ?? null} />
+          <AllowedCommoditiesRow partnerId={partner.id} current={partner.allowedCommodities ?? null} />
           {fields.map(([k, v]) => (
             <div key={k} className="flex justify-between border-b border-gray-50 py-2.5 last:border-0">
               <dt className="text-sm text-gray-500">{k}</dt>
@@ -567,6 +594,94 @@ function WebhookUrlRow({ partnerId, currentUrl }: { partnerId: string; currentUr
           Annuler
         </button>
       </div>
+      {status === "err" && error && (
+        <p style={{ fontSize: 12, color: "hsl(var(--danger))", marginTop: 6 }}>{error}</p>
+      )}
+    </div>
+  );
+}
+
+/* ─── Allowed-commodities row ───────────────────────────────────────────── */
+
+function AllowedCommoditiesRow({ partnerId, current }: { partnerId: string; current: string[] | null }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(current?.join(", ") ?? "");
+  const [status, setStatus] = useState<"idle" | "loading" | "err">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  function startEditing() {
+    setValue(current?.join(", ") ?? "");
+    setError(null);
+    setStatus("idle");
+    setEditing(true);
+  }
+
+  async function handleSave(next: string[] | null) {
+    setStatus("loading");
+    setError(null);
+    try {
+      await adminUpdatePartnerAllowedCommoditiesFn({ partnerId, allowedCommodities: next });
+      await qc.invalidateQueries({ queryKey: ["admin-partner", partnerId] });
+      setStatus("idle");
+      setEditing(false);
+    } catch (e: unknown) {
+      setStatus("err");
+      setError(e instanceof Error ? e.message : "Erreur inconnue");
+    }
+  }
+
+  const currentLabel = current === null
+    ? "Tous les produits"
+    : current.length === 0
+      ? "Aucun produit (accès bloqué)"
+      : current.join(", ");
+
+  if (!editing) {
+    return (
+      <div className="flex justify-between border-b border-gray-50 py-2.5 last:border-0">
+        <dt className="text-sm text-gray-500">Produits visibles</dt>
+        <dd className="text-sm font-semibold text-gray-900" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ color: current === null ? "var(--color-muted)" : undefined }}>{currentLabel}</span>
+          <button onClick={startEditing} className="text-xs text-blue-600 hover:underline" style={{ fontWeight: 500 }}>
+            Modifier
+          </button>
+        </dd>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-b border-gray-50 py-2.5 last:border-0">
+      <dt className="text-sm text-gray-500" style={{ marginBottom: 6 }}>Produits visibles</dt>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Ananas, Manioc — vide = tous les produits"
+          className="h-9 px-3 border border-gray-200 rounded-lg text-sm bg-white"
+          style={{ flex: 1 }}
+          autoFocus
+        />
+        <button
+          className="btn-primary"
+          style={{ height: 36, whiteSpace: "nowrap" }}
+          disabled={status === "loading"}
+          onClick={() => handleSave(value.trim() ? parseCommodityList(value) : null)}
+        >
+          {status === "loading" ? "…" : "Enregistrer"}
+        </button>
+        <button
+          onClick={() => setEditing(false)}
+          disabled={status === "loading"}
+          style={{ height: 36, padding: "0 12px", background: "none", border: "1px solid hsl(var(--gray-200))", borderRadius: 8, fontSize: 13, cursor: "pointer" }}
+        >
+          Annuler
+        </button>
+      </div>
+      <p style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 6 }}>
+        Laisser vide et enregistrer autorise tous les produits — ce n'est pas la même chose qu'une liste vide, qui bloque l'accès.
+      </p>
       {status === "err" && error && (
         <p style={{ fontSize: 12, color: "hsl(var(--danger))", marginTop: 6 }}>{error}</p>
       )}
