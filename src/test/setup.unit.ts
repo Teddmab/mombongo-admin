@@ -35,6 +35,9 @@ const firebaseMocks = {
   getFirestore: vi.fn(() => ({})),
   enableIndexedDbPersistence: vi.fn().mockResolvedValue(undefined),
   getFunctions: vi.fn(() => ({})),
+  connectAuthEmulator: vi.fn(),
+  connectFirestoreEmulator: vi.fn(),
+  connectFunctionsEmulator: vi.fn(),
 };
 
 Object.defineProperty(globalThis, "__firebaseMocks", {
@@ -50,6 +53,7 @@ vi.mock("firebase/app", () => ({
 
 vi.mock("firebase/auth", () => ({
   getAuth: firebaseMocks.getAuth,
+  connectAuthEmulator: firebaseMocks.connectAuthEmulator,
   onAuthStateChanged: vi.fn(),
   signInWithEmailAndPassword: vi.fn(),
   createUserWithEmailAndPassword: vi.fn(),
@@ -65,6 +69,7 @@ vi.mock("firebase/auth", () => ({
 
 vi.mock("firebase/firestore", () => ({
   getFirestore: firebaseMocks.getFirestore,
+  connectFirestoreEmulator: firebaseMocks.connectFirestoreEmulator,
   enableIndexedDbPersistence: firebaseMocks.enableIndexedDbPersistence,
   collection: vi.fn(),
   doc: vi.fn(),
@@ -87,6 +92,7 @@ vi.mock("firebase/firestore", () => ({
 
 vi.mock("firebase/functions", () => ({
   getFunctions: firebaseMocks.getFunctions,
+  connectFunctionsEmulator: firebaseMocks.connectFunctionsEmulator,
   httpsCallable: vi.fn(() => vi.fn()),
 }));
 

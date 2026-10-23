@@ -23,3 +23,8 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+
+# Local Firebase emulator runs (scripts/emulator/start.mjs)
+.emulator-local/
+firebase-debug.log
+firestore-debug.log
