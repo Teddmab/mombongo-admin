@@ -6,6 +6,7 @@ import {
   type FarmerListItem, type FarmerSegment,
 } from "@/hooks/useFarmers";
 import { CreateFarmerModal } from "@/pages/AdminCreateFarmer";
+import { assistedInvoicePath } from "@/lib/adminPaths";
 
 const SEGMENTS: { key: FarmerSegment; label: string }[] = [
   { key: "all", label: "Tous" },
@@ -231,7 +232,7 @@ function FarmerPreview({ farmer, onClose, onOpenProfile }: { farmer: FarmerListI
       <div className="flex flex-col gap-2" style={{ marginTop: 16 }}>
         <button onClick={onOpenProfile} className="btn-primary" style={{ height: 40 }}>Voir le profil</button>
         <button
-          onClick={() => navigate(`/admin/farmer-invoices/new?farmerId=${farmer.id}`)}
+          onClick={() => navigate(assistedInvoicePath(farmer.id))}
           className="button-outline"
           style={{ justifyContent: "center" }}
         >

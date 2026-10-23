@@ -212,3 +212,50 @@ describe("AdminPartnerInvoiceDetail", () => {
     expect(screen.queryByText("Trace d'assistance admin")).not.toBeInTheDocument();
   });
 });
+
+describe("AdminPartnerInvoices assisted-invoice deep link (P0 regression)", () => {
+  const ELIGIBLE = { uid: "f1", fullName: "Jean Kalonji", phone: "+243970000000", province: "Kasaï", avatarUrl: null, isActive: true, kycApproved: true };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedList.mockReturnValue({ data: [], isLoading: false, error: null } as never);
+    mockedFailures.mockReturnValue({ data: [], isLoading: false, error: null } as never);
+    mockedRetry.mockReturnValue({ mutate: vi.fn(), isPending: false } as never);
+    mockedAssistedMerchants.mockReturnValue({ data: { eligible: [], totalCount: 0 }, isLoading: false } as never);
+    mockedAssistedListings.mockReturnValue({ data: [], isLoading: false } as never);
+    mockedAssistedRate.mockReturnValue({ data: 2800 } as never);
+    mockedAssistedCreate.mockReturnValue({ mutateAsync: vi.fn(), isPending: false, isError: false, error: null } as never);
+    mockedAssistedCreatePerson.mockReturnValue({ mutateAsync: vi.fn(), isPending: false, isError: false, error: null } as never);
+  });
+
+  function renderAt(url: string) {
+    return render(
+      <MemoryRouter initialEntries={[url]}>
+        <Routes>
+          <Route path="/admin/partner-invoices" element={<AdminPartnerInvoices />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it("opens the existing creation modal with the linked farmer pre-selected", () => {
+    mockedAssistedFarmers.mockReturnValue({ data: { eligible: [ELIGIBLE], totalCount: 1 }, isLoading: false } as never);
+    renderAt("/admin/partner-invoices?create=1&farmerId=f1");
+    expect(screen.getByText("Créer une facture avec assistance")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { checked: true }).closest("label")).toHaveTextContent("Jean Kalonji");
+  });
+
+  it("drops and explains a linked farmer who is not eligible (KYC not approved)", () => {
+    mockedAssistedFarmers.mockReturnValue({ data: { eligible: [], totalCount: 1 }, isLoading: false } as never);
+    renderAt("/admin/partner-invoices?create=1&farmerId=f9");
+    expect(screen.getByText("Créer une facture avec assistance")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/KYC n'est pas approuvé/i);
+    expect(screen.queryByRole("radio", { checked: true })).not.toBeInTheDocument();
+  });
+
+  it("does not open the modal without the deep-link parameter", () => {
+    mockedAssistedFarmers.mockReturnValue({ data: { eligible: [ELIGIBLE], totalCount: 1 }, isLoading: false } as never);
+    renderAt("/admin/partner-invoices");
+    expect(screen.queryByText("Créer une facture avec assistance")).not.toBeInTheDocument();
+  });
+});
