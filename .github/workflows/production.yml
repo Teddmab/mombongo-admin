@@ -171,6 +171,13 @@ jobs:
           # main branch = production alias → mombongo-admin.pages.dev
           command: pages deploy dist --project-name=mombongo-admin --branch=main
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          # wrangler-action infers its package manager from the lockfile; this
+          # repo's bun.lock makes it pick bun, which is not installed in this
+          # job ("Unable to locate executable file: bun", run 35920190398).
+          # npm ships with the runner, and pinning wranglerVersion keeps the
+          # deploy tool itself deterministic.
+          packageManager: npm
+          wranglerVersion: "4.148.0"
 
   # ─────────────────────────────────────────
   # JOB 6: Smoke tests on production URL

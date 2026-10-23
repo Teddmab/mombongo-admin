@@ -128,6 +128,10 @@ jobs:
           # Deploys to the "staging" branch alias → staging.mombongo-admin.pages.dev
           command: pages deploy dist --project-name=mombongo-admin --branch=staging
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          # Same as production.yml: bun.lock would make wrangler-action pick
+          # bun, which this job does not install.
+          packageManager: npm
+          wranglerVersion: "4.148.0"
 
   # ─────────────────────────────────────────
   # JOB 4: Deploy Firebase Rules + Indexes
